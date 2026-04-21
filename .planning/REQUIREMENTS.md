@@ -93,23 +93,51 @@
 
 ## Traceability
 
-*(Populated during roadmap creation)*
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01–06 | — | Pending |
-| FLAG-01–06 | — | Pending |
-| REVW-01–06 | — | Pending |
-| SYNC-01–02 | — | Pending |
-| TRAN-01–08 | — | Pending |
-| EVAL-01–04 | — | Pending |
-| CLML-01–05 | — | Pending |
+| DATA-01 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Pending |
+| DATA-03 | Phase 1 | Pending |
+| DATA-04 | Phase 1 | Pending |
+| DATA-05 | Phase 1 | Pending |
+| DATA-06 | Phase 1 | Pending |
+| FLAG-01 | Phase 1 | Pending |
+| FLAG-02 | Phase 1 | Pending |
+| FLAG-03 | Phase 1 | Pending |
+| FLAG-04 | Phase 1 | Pending |
+| FLAG-05 | Phase 1 | Pending |
+| FLAG-06 | Phase 1 | Pending |
+| CLML-01 | Phase 1 | Pending |
+| CLML-02 | Phase 1 | Pending |
+| CLML-03 | Phase 1 | Pending |
+| CLML-04 | Phase 1 | Pending |
+| CLML-05 | Phase 1 | Pending |
+| REVW-01 | Phase 2 | Pending |
+| REVW-02 | Phase 2 | Pending |
+| REVW-03 | Phase 2 | Pending |
+| REVW-04 | Phase 2 | Pending |
+| REVW-05 | Phase 2 | Pending |
+| REVW-06 | Phase 2 | Pending |
+| SYNC-01 | Phase 2 | Pending |
+| SYNC-02 | Phase 2 | Pending |
+| TRAN-01 | Phase 3 | Pending |
+| TRAN-02 | Phase 3 | Pending |
+| TRAN-03 | Phase 3 | Pending |
+| TRAN-04 | Phase 3 | Pending |
+| TRAN-05 | Phase 3 | Pending |
+| TRAN-06 | Phase 3 | Pending |
+| TRAN-07 | Phase 3 | Pending |
+| TRAN-08 | Phase 3 | Pending |
+| EVAL-01 | Phase 3 | Pending |
+| EVAL-02 | Phase 3 | Pending |
+| EVAL-03 | Phase 3 | Pending |
+| EVAL-04 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 37 total
-- Mapped to phases: 0
-- Unmapped: 37 ⚠️
+- Mapped to phases: 37
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-21*
-*Last updated: 2026-04-21 after initial definition*
+*Last updated: 2026-04-21 after roadmap creation*
