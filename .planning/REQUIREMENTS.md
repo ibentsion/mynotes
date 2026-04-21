@@ -59,7 +59,7 @@
 
 - [ ] **CLML-01**: prepare_data.py initializes ClearML task `data_prep`, logs PDF list and prep parameters, uploads manifest.csv and review_queue.csv as artifacts
 - [ ] **CLML-02**: ClearML dataset is created/versioned containing page images, crop images, and manifest files
-- [ ] **CLML-03**: clearml_utils.py provides shared helpers: init_task(), upload_file_artifact(), report_manifest_stats(), maybe_create_dataset()
+- [x] **CLML-03**: clearml_utils.py provides shared helpers: init_task(), upload_file_artifact(), report_manifest_stats(), maybe_create_dataset()
 - [x] **CLML-04**: All scripts save git commit hash and log package versions for reproducibility
 - [ ] **CLML-05**: All scripts accept explicit CLI arguments that are tracked in ClearML
 
@@ -109,7 +109,7 @@
 | FLAG-06 | Phase 1 | Pending |
 | CLML-01 | Phase 1 | Pending |
 | CLML-02 | Phase 1 | Pending |
-| CLML-03 | Phase 1 | Pending |
+| CLML-03 | Phase 1 | Complete |
 | CLML-04 | Phase 1 | Complete (01-01) |
 | CLML-05 | Phase 1 | Pending |
 | REVW-01 | Phase 2 | Pending |
