@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-02-PLAN.md (clearml_utils helpers)
-last_updated: "2026-04-21T14:12:29.681Z"
+stopped_at: Completed 01-03-PLAN.md (region_detector + flagging modules)
+last_updated: "2026-04-21T14:13:03.635Z"
 last_activity: 2026-04-21
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 4
-  completed_plans: 2
+  completed_plans: 3
   percent: 5
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 1 of 3 (Data Pipeline)
-Plan: 2 of 4 in current phase
+Plan: 3 of 4 in current phase
 Status: Ready to execute
 Last activity: 2026-04-21
 
@@ -53,6 +53,7 @@ Progress: [█░░░░░░░░░] 5%
 
 *Updated after each plan completion*
 | Phase 01-data-pipeline P02 | 2 | 2 tasks | 2 files |
+| Phase 01-data-pipeline P03 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,8 @@ Recent decisions affecting current work:
 - .python-version committed (not gitignored) for tool pinning
 - [Phase 01-02]: Module-level ClearML imports (Task/Dataset) required for test patchability via src.clearml_utils.Task
 - [Phase 01-02]: init_task tags defaults to [] not None to avoid ClearML SDK None tags issue
+- [Phase 01-data-pipeline]: Dilation kernel w/h exposed as kwargs (not hardcoded) for CLI tuning per CLML-05
+- [Phase 01-data-pipeline]: minAreaRect angle corrected with -45 heuristic to avoid false negatives on tilted crops
 
 ### Pending Todos
 
@@ -79,6 +82,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21T14:12:29.677Z
-Stopped at: Completed 01-02-PLAN.md (clearml_utils helpers)
+Last session: 2026-04-21T14:13:03.631Z
+Stopped at: Completed 01-03-PLAN.md (region_detector + flagging modules)
 Resume file: None

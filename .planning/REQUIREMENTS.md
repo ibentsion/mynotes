@@ -8,19 +8,19 @@
 ### Data Preparation
 
 - [ ] **DATA-01**: Pipeline converts scanned PDFs to per-page images (pdf2image + Poppler)
-- [ ] **DATA-02**: Pipeline preprocesses pages (grayscale, normalize contrast) before region detection
-- [ ] **DATA-03**: Region detector extracts handwriting regions using a region-first approach (not strict line segmentation)
+- [x] **DATA-02**: Pipeline preprocesses pages (grayscale, normalize contrast) before region detection
+- [x] **DATA-03**: Region detector extracts handwriting regions using a region-first approach (not strict line segmentation)
 - [ ] **DATA-04**: Each detected region is saved as a grayscale image crop with metadata (page, bounding box, dimensions)
 - [ ] **DATA-05**: Pipeline produces manifest.csv with one row per crop (path, page, bbox, flags, status)
 - [ ] **DATA-06**: Pipeline produces review_queue.csv sorted by labeling priority (flagged → large/mixed → diverse → easy)
 
 ### Flagging
 
-- [ ] **FLAG-01**: Regions are scored and flagged using heuristics: strong angle/diagonal text
-- [ ] **FLAG-02**: Regions are flagged for: overlap with other detected regions
-- [ ] **FLAG-03**: Regions are flagged for: very tall region, tiny region, unusual aspect ratio
-- [ ] **FLAG-04**: Regions are flagged for: margin note candidate (near page edge)
-- [ ] **FLAG-05**: Regions are flagged for: faint/low-contrast content
+- [x] **FLAG-01**: Regions are scored and flagged using heuristics: strong angle/diagonal text
+- [x] **FLAG-02**: Regions are flagged for: overlap with other detected regions
+- [x] **FLAG-03**: Regions are flagged for: very tall region, tiny region, unusual aspect ratio
+- [x] **FLAG-04**: Regions are flagged for: margin note candidate (near page edge)
+- [x] **FLAG-05**: Regions are flagged for: faint/low-contrast content
 - [ ] **FLAG-06**: Flag reasons are stored per region in manifest.csv
 
 ### Review App
@@ -96,16 +96,16 @@
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | DATA-01 | Phase 1 | Pending |
-| DATA-02 | Phase 1 | Pending |
-| DATA-03 | Phase 1 | Pending |
+| DATA-02 | Phase 1 | Complete |
+| DATA-03 | Phase 1 | Complete |
 | DATA-04 | Phase 1 | Pending |
 | DATA-05 | Phase 1 | Pending |
 | DATA-06 | Phase 1 | Pending |
-| FLAG-01 | Phase 1 | Pending |
-| FLAG-02 | Phase 1 | Pending |
-| FLAG-03 | Phase 1 | Pending |
-| FLAG-04 | Phase 1 | Pending |
-| FLAG-05 | Phase 1 | Pending |
+| FLAG-01 | Phase 1 | Complete |
+| FLAG-02 | Phase 1 | Complete |
+| FLAG-03 | Phase 1 | Complete |
+| FLAG-04 | Phase 1 | Complete |
+| FLAG-05 | Phase 1 | Complete |
 | FLAG-06 | Phase 1 | Pending |
 | CLML-01 | Phase 1 | Pending |
 | CLML-02 | Phase 1 | Pending |
