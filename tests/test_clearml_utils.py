@@ -24,9 +24,7 @@ def test_init_task_calls_task_init_with_correct_args(mock_task_cls):
 @patch("src.clearml_utils.Task")
 def test_init_task_default_tags_is_empty_list(mock_task_cls):
     init_task("p", "t")
-    mock_task_cls.init.assert_called_once_with(
-        project_name="p", task_name="t", tags=[]
-    )
+    mock_task_cls.init.assert_called_once_with(project_name="p", task_name="t", tags=[])
 
 
 def test_upload_file_artifact_stringifies_path():
@@ -42,12 +40,8 @@ def test_report_manifest_stats_logs_total_and_flagged():
     task = MagicMock()
     logger = task.get_logger.return_value
     report_manifest_stats(task, df)
-    logger.report_scalar.assert_any_call(
-        title="crops", series="total", iteration=0, value=5
-    )
-    logger.report_scalar.assert_any_call(
-        title="crops", series="flagged", iteration=0, value=2
-    )
+    logger.report_scalar.assert_any_call(title="crops", series="total", iteration=0, value=5)
+    logger.report_scalar.assert_any_call(title="crops", series="flagged", iteration=0, value=2)
     assert logger.report_scalar.call_count == 2
 
 
@@ -60,9 +54,7 @@ def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls):
     result = maybe_create_dataset("proj", "ds_v1", [Path("/tmp/a"), Path("/tmp/b")])
 
     assert result == "abc123"
-    mock_dataset_cls.create.assert_called_once_with(
-        dataset_name="ds_v1", dataset_project="proj"
-    )
+    mock_dataset_cls.create.assert_called_once_with(dataset_name="ds_v1", dataset_project="proj")
     assert mock_ds.add_files.call_args_list == [call("/tmp/a"), call("/tmp/b")]
     mock_ds.upload.assert_called_once_with()
     mock_ds.finalize.assert_called_once_with()
