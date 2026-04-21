@@ -16,7 +16,7 @@ verifiable before the next begins.
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Data Pipeline** - PDF ingestion, region detection, heuristic flagging, and ClearML infrastructure
+- [x] **Phase 1: Data Pipeline** - PDF ingestion, region detection, heuristic flagging, and ClearML infrastructure (completed 2026-04-21)
 - [ ] **Phase 2: Review & Annotation** - Streamlit review app, labeling workflow, and ClearML sync
 - [ ] **Phase 3: Training & Evaluation** - CRNN+CTC model training and CER evaluation
 
@@ -64,6 +64,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Pipeline | 2/4 | In Progress|  |
+| 1. Data Pipeline | 4/4 | Complete   | 2026-04-21 |
 | 2. Review & Annotation | 0/? | Not started | - |
 | 3. Training & Evaluation | 0/? | Not started | - |

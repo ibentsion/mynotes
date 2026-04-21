@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 01-03-PLAN.md (region_detector + flagging modules)
-last_updated: "2026-04-21T14:13:03.635Z"
+stopped_at: "Checkpoint: Task 3 human-verify for 01-04 (pipeline on real PDF)"
+last_updated: "2026-04-21T14:25:08.914Z"
 last_activity: 2026-04-21
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 5
 ---
 
@@ -54,6 +54,7 @@ Progress: [█░░░░░░░░░] 5%
 *Updated after each plan completion*
 | Phase 01-data-pipeline P02 | 2 | 2 tasks | 2 files |
 | Phase 01-data-pipeline P03 | 2 | 2 tasks | 4 files |
+| Phase 01-data-pipeline P04 | 35 | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Recent decisions affecting current work:
 - [Phase 01-02]: init_task tags defaults to [] not None to avoid ClearML SDK None tags issue
 - [Phase 01-data-pipeline]: Dilation kernel w/h exposed as kwargs (not hardcoded) for CLI tuning per CLML-05
 - [Phase 01-data-pipeline]: minAreaRect angle corrected with -45 heuristic to avoid false negatives on tilted crops
+- [Phase 01-04]: Dataset.create(use_current_task=True) required — calling without it triggers Task.init conflict when a task is already running
+- [Phase 01-04]: ty: ignore comment used on convert_from_path return type — pdf2image lacks overloaded stubs for paths_only=True
 
 ### Pending Todos
 
@@ -82,6 +85,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21T14:13:03.631Z
-Stopped at: Completed 01-03-PLAN.md (region_detector + flagging modules)
+Last session: 2026-04-21T14:25:08.910Z
+Stopped at: Checkpoint: Task 3 human-verify for 01-04 (pipeline on real PDF)
 Resume file: None
