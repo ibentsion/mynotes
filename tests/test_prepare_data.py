@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from src.manifest_schema import MANIFEST_COLUMNS
 from tests.fixtures.make_synthetic_pdf import make_synthetic_pdf

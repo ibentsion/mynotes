@@ -54,7 +54,9 @@ def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls):
     result = maybe_create_dataset("proj", "ds_v1", [Path("/tmp/a"), Path("/tmp/b")])
 
     assert result == "abc123"
-    mock_dataset_cls.create.assert_called_once_with(dataset_name="ds_v1", dataset_project="proj")
+    mock_dataset_cls.create.assert_called_once_with(
+        dataset_name="ds_v1", dataset_project="proj", use_current_task=True
+    )
     assert mock_ds.add_files.call_args_list == [call("/tmp/a"), call("/tmp/b")]
     mock_ds.upload.assert_called_once_with()
     mock_ds.finalize.assert_called_once_with()

@@ -38,7 +38,9 @@ def maybe_create_dataset(
     folders: list[Path],
 ) -> str:
     """Create, populate, upload, and finalize a ClearML dataset. Returns dataset id."""
-    ds = Dataset.create(dataset_name=dataset_name, dataset_project=project)
+    ds = Dataset.create(
+        dataset_name=dataset_name, dataset_project=project, use_current_task=True
+    )
     for folder in folders:
         ds.add_files(str(folder))
     ds.upload()
