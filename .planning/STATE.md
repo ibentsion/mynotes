@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Roadmap written, REQUIREMENTS.md traceability updated, ready to plan Phase 1
-last_updated: "2026-04-21T14:04:43.102Z"
-last_activity: 2026-04-21 -- Phase 01 execution started
+stopped_at: Completed 01-03-PLAN.md (region_detector + flagging modules)
+last_updated: "2026-04-21T14:13:03.635Z"
+last_activity: 2026-04-21
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
-  percent: 0
+  completed_plans: 2
+  percent: 5
 ---
 
 # Project State
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 1 of 3 (Data Pipeline)
-Plan: 1 of 4 in current phase
-Status: In progress
-Last activity: 2026-04-21 — Completed 01-01 project scaffolding
+Plan: 2 of 4 in current phase
+Status: Ready to execute
+Last activity: 2026-04-21
 
 Progress: [█░░░░░░░░░] 5%
 
@@ -52,6 +52,7 @@ Progress: [█░░░░░░░░░] 5%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 01-data-pipeline P03 | 2 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Recent decisions affecting current work:
 - CPU-only for MVP: no local CUDA; dataset small enough
 - uv_build backend with src/mynotes/ layout (required for uv package builds)
 - .python-version committed (not gitignored) for tool pinning
+- [Phase 01-data-pipeline]: Dilation kernel w/h exposed as kwargs (not hardcoded) for CLI tuning per CLML-05
+- [Phase 01-data-pipeline]: minAreaRect angle corrected with -45 heuristic to avoid false negatives on tilted crops
 
 ### Pending Todos
 
@@ -76,6 +79,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-21
-Stopped at: Completed 01-01-PLAN.md (project scaffolding)
+Last session: 2026-04-21T14:13:03.631Z
+Stopped at: Completed 01-03-PLAN.md (region_detector + flagging modules)
 Resume file: None

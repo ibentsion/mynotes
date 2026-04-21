@@ -64,6 +64,6 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Data Pipeline | 1/4 | In progress | - |
+| 1. Data Pipeline | 2/4 | In Progress|  |
 | 2. Review & Annotation | 0/? | Not started | - |
 | 3. Training & Evaluation | 0/? | Not started | - |
