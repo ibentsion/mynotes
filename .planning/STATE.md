@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 1 of 3 (Data Pipeline)
-Plan: 0 of ? in current phase
-Status: Ready to plan
-Last activity: 2026-04-21 — Roadmap created, phases derived from requirements
+Plan: 1 of ? in current phase
+Status: In progress
+Last activity: 2026-04-21 — Completed 01-01 project scaffolding
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 5%
 
 ## Performance Metrics
 
@@ -45,6 +45,8 @@ Recent decisions affecting current work:
 - Region-first segmentation (not line-only): Hebrew notes have diagonal/overlapping text
 - CRNN+CTC over TrOCR: lighter, trains CPU with <300 samples
 - CPU-only for MVP: no local CUDA; dataset small enough
+- uv_build backend with src/mynotes/ layout (required for uv package builds)
+- .python-version committed (not gitignored) for tool pinning
 
 ### Pending Todos
 
@@ -57,5 +59,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-04-21
-Stopped at: Roadmap written, REQUIREMENTS.md traceability updated, ready to plan Phase 1
+Stopped at: Completed 01-01-PLAN.md (project scaffolding)
 Resume file: None
