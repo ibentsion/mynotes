@@ -25,8 +25,8 @@
 
 ### Review App
 
-- [ ] **REVW-01**: Streamlit app loads manifest.csv and displays crops for review
-- [ ] **REVW-02**: User can filter crops by status: unlabeled, flagged, labeled, all
+- [x] **REVW-01**: Streamlit app loads manifest.csv and displays crops for review
+- [x] **REVW-02**: User can filter crops by status: unlabeled, flagged, labeled, all
 - [ ] **REVW-03**: User can transcribe Hebrew text for a crop (edit label field)
 - [ ] **REVW-04**: User can set crop status: unlabeled / labeled / skip / bad_seg / merge_needed
 - [ ] **REVW-05**: User can add free-text review notes per crop
@@ -112,8 +112,8 @@
 | CLML-03 | Phase 1 | Complete |
 | CLML-04 | Phase 1 | Complete (01-01) |
 | CLML-05 | Phase 1 | Pending |
-| REVW-01 | Phase 2 | Pending |
-| REVW-02 | Phase 2 | Pending |
+| REVW-01 | Phase 2 | Complete |
+| REVW-02 | Phase 2 | Complete |
 | REVW-03 | Phase 2 | Pending |
 | REVW-04 | Phase 2 | Pending |
 | REVW-05 | Phase 2 | Pending |

@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-04-25T18:16:18.743Z"
-last_activity: 2026-04-21
+stopped_at: Completed 02-review-annotation-01-PLAN.md
+last_updated: "2026-04-25T19:16:48.267Z"
+last_activity: 2026-04-25
 progress:
-  total_phases: 3
+  total_phases: 2
   completed_phases: 1
   total_plans: 4
   completed_plans: 4
@@ -26,9 +26,9 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 1 of 3 (Data Pipeline)
-Plan: 3 of 4 in current phase
+Plan: 4 of 4 in current phase
 Status: Ready to execute
-Last activity: 2026-04-21
+Last activity: 2026-04-25
 
 Progress: [█░░░░░░░░░] 5%
 
@@ -55,6 +55,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 01-data-pipeline P02 | 2 | 2 tasks | 2 files |
 | Phase 01-data-pipeline P03 | 2 | 2 tasks | 4 files |
 | Phase 01-data-pipeline P04 | 35 | 2 tasks | 7 files |
+| Phase 02-review-annotation P01 | 5 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [Phase 01-data-pipeline]: minAreaRect angle corrected with -45 heuristic to avoid false negatives on tilted crops
 - [Phase 01-04]: Dataset.create(use_current_task=True) required — calling without it triggers Task.init conflict when a task is already running
 - [Phase 01-04]: ty: ignore comment used on convert_from_path return type — pdf2image lacks overloaded stubs for paths_only=True
+- [Phase 02-review-annotation]: streamlit pinned at 1.56.0 (latest stable; plan suggested 1.40.0)
+- [Phase 02-review-annotation]: review_queue.csv honored via left-merge; falls back to manifest order (D-02)
+- [Phase 02-review-annotation]: .review_state.json persists filter+index; resets index on filter change (D-03)
 
 ### Pending Todos
 
@@ -85,6 +89,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-25T18:16:18.738Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-review-annotation/02-CONTEXT.md
+Last session: 2026-04-25T19:16:48.263Z
+Stopped at: Completed 02-review-annotation-01-PLAN.md
+Resume file: None
