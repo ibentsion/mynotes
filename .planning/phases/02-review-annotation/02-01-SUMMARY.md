@@ -83,3 +83,13 @@ Streamlit review app skeleton with manifest load, schema validation, sidebar fil
 ## Known Stubs
 
 None. The skeleton is complete for navigation. Edit fields (transcription, status, notes, autosave) and ClearML sync are intentionally deferred to Plan 02-03 as documented in the plan objective.
+
+## Self-Check: PASSED
+
+- src/review_app.py: FOUND
+- src/review_state.py: FOUND
+- tests/test_review_state.py: FOUND
+- 02-01-SUMMARY.md: FOUND
+- Commit 3b958e3: FOUND
+- Commit 25149c3: FOUND
+- Commit 9fd499f: FOUND
