@@ -1,13 +1,14 @@
-"""review_app.py — Streamlit review interface skeleton (filter + queue navigation).
+"""review_app.py — Streamlit review interface with edit fields, autosave, and ClearML sync.
 
-Field editing (label, status, notes) and ClearML sync are added in Plan 02-03.
 Run with: `uv run streamlit run src/review_app.py -- --manifest outputs/manifest.csv`
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -20,6 +21,11 @@ from src.review_state import (
     load_state,
     save_state,
     with_filter,
+)
+from src.review_to_clearml import (  # noqa: F401 — used in main() (Task 2)
+    KNOWN_STATUSES,
+    summarize_status_counts,
+    sync_review_to_clearml,
 )
 
 
@@ -63,6 +69,46 @@ def _resolve_queue(manifest_df: pd.DataFrame, queue_df: pd.DataFrame | None) -> 
     )
     # Drop any queue rows whose crop_path isn't present in the manifest (defensive)
     return ordered.dropna(subset=["pdf_path"]).reset_index(drop=True)
+
+
+def update_manifest_row(
+    df: pd.DataFrame,
+    crop_path: str,
+    *,
+    label: str | None = None,
+    status: str | None = None,
+    notes: str | None = None,
+) -> pd.DataFrame:
+    """Return a new DataFrame with the named row's fields updated.
+
+    Raises KeyError if crop_path is not present.
+    """
+    mask = df["crop_path"] == crop_path
+    if not mask.any():
+        raise KeyError(f"crop_path not in manifest: {crop_path}")
+    new_df = df.copy()
+    if label is not None:
+        new_df.loc[mask, "label"] = label
+    if status is not None:
+        new_df.loc[mask, "status"] = status
+    if notes is not None:
+        new_df.loc[mask, "notes"] = notes
+    return new_df[MANIFEST_COLUMNS]
+
+
+def write_manifest_atomic(path: Path, df: pd.DataFrame) -> None:
+    """Write df to path via tempfile + os.replace so partial writes can't corrupt the file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # NamedTemporaryFile in the SAME dir guarantees os.replace stays on the same filesystem.
+    fd, tmp_name = tempfile.mkstemp(prefix=".manifest.", suffix=".csv.tmp", dir=str(path.parent))
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        df[MANIFEST_COLUMNS].to_csv(tmp_path, index=False)
+        os.replace(tmp_path, path)
+    finally:
+        if tmp_path.exists():
+            tmp_path.unlink()
 
 
 def main() -> None:
