@@ -242,10 +242,37 @@ def main() -> None:
     current_path = filtered_paths[st.session_state["index"]]
     current_row = manifest_df.loc[manifest_df["crop_path"] == current_path].iloc[0]
 
-    # --- Edit surface FIRST so it's visible without scrolling ---
-
-    # REVW-04: status selector
     current_status = str(current_row["status"])
+    current_label = str(current_row["label"]) if pd.notna(current_row["label"]) else ""
+    current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
+    label_key = f"label_{current_path}"
+
+    # --- Fast-path: Enter on label → save, mark labeled, advance ---
+    def _on_label_enter() -> None:
+        st.session_state["_label_submitted"] = st.session_state[label_key]
+
+    # REVW-03: single-line Hebrew input (RTL via global CSS); Enter submits
+    st.text_input(
+        "Label — press Enter to save & next",
+        value=current_label,
+        key=label_key,
+        on_change=_on_label_enter,
+    )
+
+    if st.session_state.get("_label_submitted") is not None:
+        submitted = st.session_state.pop("_label_submitted")
+        if submitted:
+            manifest_df = update_manifest_row(
+                manifest_df, current_path, label=submitted, status="labeled"
+            )
+            st.session_state["manifest_df"] = manifest_df
+            write_manifest_atomic(manifest_path, manifest_df)
+            next_idx = min(len(filtered_paths) - 1, st.session_state["index"] + 1)
+            st.session_state["index"] = next_idx
+            save_state(state_path, ReviewState(st.session_state["filter"], next_idx))
+            st.rerun()
+
+    # --- Manual overrides: status and notes autosave on change ---
     statuses = list(KNOWN_STATUSES)
     status_index = statuses.index(current_status) if current_status in KNOWN_STATUSES else 0
     new_status = st.selectbox(
@@ -255,37 +282,12 @@ def main() -> None:
         key=f"status_{current_path}",
     )
 
-    # REVW-03: Hebrew transcription text area (RTL via global CSS)
-    current_label = str(current_row["label"]) if pd.notna(current_row["label"]) else ""
-    new_label = st.text_area(
-        "Transcription (Hebrew)",
-        value=current_label,
-        height=100,
-        key=f"label_{current_path}",
-    )
-
-    # REVW-05: free-text review notes
     current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
-    new_notes = st.text_area(
-        "Notes",
-        value=current_notes,
-        height=68,
-        key=f"notes_{current_path}",
-    )
+    new_notes = st.text_area("Notes", value=current_notes, height=68, key=f"notes_{current_path}")
 
-    # REVW-06 + D-09: autosave on any change
-    changed = (
-        new_status != current_status
-        or new_label != current_label
-        or new_notes != current_notes
-    )
-    if changed:
+    if new_status != current_status or new_notes != current_notes:
         manifest_df = update_manifest_row(
-            manifest_df,
-            current_path,
-            label=new_label,
-            status=new_status,
-            notes=new_notes,
+            manifest_df, current_path, status=new_status, notes=new_notes
         )
         st.session_state["manifest_df"] = manifest_df
         write_manifest_atomic(manifest_path, manifest_df)
