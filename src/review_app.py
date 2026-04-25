@@ -22,7 +22,7 @@ from src.review_state import (
     save_state,
     with_filter,
 )
-from src.review_to_clearml import (  # noqa: F401 — used in main() (Task 2)
+from src.review_to_clearml import (
     KNOWN_STATUSES,
     summarize_status_counts,
     sync_review_to_clearml,
@@ -119,6 +119,11 @@ def main() -> None:
     state_path = manifest_path.with_name(".review_state.json")
 
     st.set_page_config(page_title="Hebrew OCR Review", layout="wide")
+    # D-04: RTL CSS for all textareas (Hebrew transcription input)
+    st.markdown(
+        "<style>textarea { direction: rtl; text-align: right; unicode-bidi: plaintext; }</style>",
+        unsafe_allow_html=True,
+    )
     st.title("Hebrew OCR — Review Queue")
 
     if not manifest_path.exists():
@@ -126,6 +131,11 @@ def main() -> None:
         st.stop()
 
     manifest_df = _load_csv(manifest_path, "manifest.csv")
+    # Session-state cache of the manifest (so edits persist across Streamlit reruns)
+    if "manifest_df" not in st.session_state:
+        st.session_state["manifest_df"] = manifest_df
+    manifest_df = st.session_state["manifest_df"]
+
     if review_queue_path.exists():
         queue_df = _load_csv(review_queue_path, "review_queue.csv")
     else:
@@ -157,6 +167,29 @@ def main() -> None:
         st.session_state["index"] = new_state.index
         save_state(state_path, new_state)
         st.rerun()
+
+    # D-05: live status counts in sidebar
+    counts = summarize_status_counts(manifest_df)
+    flagged_count = int(manifest_df["is_flagged"].astype(bool).sum())
+    st.sidebar.divider()
+    st.sidebar.subheader("Status")
+    st.sidebar.metric("unlabeled", counts["unlabeled"])
+    st.sidebar.metric("flagged", flagged_count)
+    st.sidebar.metric("labeled", counts["labeled"])
+    st.sidebar.metric("skip", counts["skip"])
+    st.sidebar.metric("bad_seg", counts["bad_seg"])
+    st.sidebar.metric("merge_needed", counts["merge_needed"])
+
+    # D-07: sync to ClearML button
+    st.sidebar.divider()
+    if st.sidebar.button("Sync to ClearML", use_container_width=True):
+        # Persist any pending edits first
+        write_manifest_atomic(manifest_path, manifest_df)
+        try:
+            synced = sync_review_to_clearml(manifest_path)
+            st.sidebar.success(f"Synced — {synced}")
+        except Exception as exc:  # noqa: BLE001
+            st.sidebar.error(f"Sync failed: {exc}")
 
     # Compute filtered queue from ordered_df
     filtered_paths = _filter_queue(ordered_df, st.session_state["filter"])
@@ -224,6 +257,54 @@ def main() -> None:
                 ),
             }
         )
+
+    # REVW-04: status selector
+    current_status = str(current_row["status"])
+    statuses = list(KNOWN_STATUSES)
+    status_index = statuses.index(current_status) if current_status in KNOWN_STATUSES else 0
+    new_status = st.selectbox(
+        "Status",
+        statuses,
+        index=status_index,
+        key=f"status_{current_path}",
+    )
+
+    # REVW-03: Hebrew transcription text area (RTL via global CSS)
+    current_label = str(current_row["label"]) if pd.notna(current_row["label"]) else ""
+    new_label = st.text_area(
+        "Transcription (Hebrew)",
+        value=current_label,
+        height=120,
+        key=f"label_{current_path}",
+    )
+
+    # REVW-05: free-text review notes
+    current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
+    new_notes = st.text_area(
+        "Notes",
+        value=current_notes,
+        height=80,
+        key=f"notes_{current_path}",
+    )
+
+    # REVW-06 + D-09: autosave on any change
+    changed = (
+        new_status != current_status
+        or new_label != current_label
+        or new_notes != current_notes
+    )
+    if changed:
+        manifest_df = update_manifest_row(
+            manifest_df,
+            current_path,
+            label=new_label,
+            status=new_status,
+            notes=new_notes,
+        )
+        st.session_state["manifest_df"] = manifest_df
+        write_manifest_atomic(manifest_path, manifest_df)
+        st.toast("Saved", icon="✅")
+        st.rerun()
 
 
 if __name__ == "__main__":
