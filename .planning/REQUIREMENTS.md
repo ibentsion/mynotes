@@ -34,8 +34,8 @@
 
 ### ClearML Sync
 
-- [ ] **SYNC-01**: review_to_clearml script summarizes current labeling status (counts per status) and uploads to ClearML task `manual_review_summary`
-- [ ] **SYNC-02**: Updated manifest.csv is uploaded as artifact to `manual_review_summary` task
+- [x] **SYNC-01**: review_to_clearml script summarizes current labeling status (counts per status) and uploads to ClearML task `manual_review_summary`
+- [x] **SYNC-02**: Updated manifest.csv is uploaded as artifact to `manual_review_summary` task
 
 ### Training
 
@@ -118,8 +118,8 @@
 | REVW-04 | Phase 2 | Pending |
 | REVW-05 | Phase 2 | Pending |
 | REVW-06 | Phase 2 | Pending |
-| SYNC-01 | Phase 2 | Pending |
-| SYNC-02 | Phase 2 | Pending |
+| SYNC-01 | Phase 2 | Complete |
+| SYNC-02 | Phase 2 | Complete |
 | TRAN-01 | Phase 3 | Pending |
 | TRAN-02 | Phase 3 | Pending |
 | TRAN-03 | Phase 3 | Pending |
