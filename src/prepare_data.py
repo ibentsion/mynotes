@@ -168,7 +168,8 @@ def main() -> int:
     maybe_create_dataset(
         "handwriting-hebrew-ocr",
         args.dataset_name,
-        [pages_dir, crops_dir, manifest_path.parent],
+        folders=[pages_dir, crops_dir],
+        files=[manifest_path, review_queue_path],
     )
 
     print(

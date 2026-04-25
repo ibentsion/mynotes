@@ -25,6 +25,9 @@ build-backend = "uv_build"
 [tool.uv]
 package = true
 
+[project.scripts]
+prepare-data = "src.prepare_data:main"
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"
