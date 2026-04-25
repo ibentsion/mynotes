@@ -239,28 +239,7 @@ def main() -> None:
     current_path = filtered_paths[st.session_state["index"]]
     current_row = manifest_df.loc[manifest_df["crop_path"] == current_path].iloc[0]
 
-    if Path(current_path).exists():
-        st.image(current_path, width="stretch")
-    else:
-        st.error(f"Crop image missing on disk: {current_path}")
-
-    with st.expander("Crop metadata"):
-        st.write(
-            {
-                "page_num": int(current_row["page_num"]),
-                "x": int(current_row["x"]),
-                "y": int(current_row["y"]),
-                "w": int(current_row["w"]),
-                "h": int(current_row["h"]),
-                "area": int(current_row["area"]),
-                "is_flagged": bool(current_row["is_flagged"]),
-                "flag_reasons": (
-                    str(current_row["flag_reasons"])
-                    if pd.notna(current_row["flag_reasons"])
-                    else ""
-                ),
-            }
-        )
+    # --- Edit surface FIRST so it's visible without scrolling ---
 
     # REVW-04: status selector
     current_status = str(current_row["status"])
@@ -278,7 +257,7 @@ def main() -> None:
     new_label = st.text_area(
         "Transcription (Hebrew)",
         value=current_label,
-        height=120,
+        height=100,
         key=f"label_{current_path}",
     )
 
@@ -287,7 +266,7 @@ def main() -> None:
     new_notes = st.text_area(
         "Notes",
         value=current_notes,
-        height=80,
+        height=68,
         key=f"notes_{current_path}",
     )
 
@@ -309,6 +288,31 @@ def main() -> None:
         write_manifest_atomic(manifest_path, manifest_df)
         st.toast("Saved", icon="✅")
         st.rerun()
+
+    # --- Crop image BELOW the edit surface, capped width so it doesn't overflow ---
+    st.divider()
+    if Path(current_path).exists():
+        st.image(current_path, width=480)
+    else:
+        st.error(f"Crop image missing on disk: {current_path}")
+
+    with st.expander("Crop metadata"):
+        st.write(
+            {
+                "page_num": int(current_row["page_num"]),
+                "x": int(current_row["x"]),
+                "y": int(current_row["y"]),
+                "w": int(current_row["w"]),
+                "h": int(current_row["h"]),
+                "area": int(current_row["area"]),
+                "is_flagged": bool(current_row["is_flagged"]),
+                "flag_reasons": (
+                    str(current_row["flag_reasons"])
+                    if pd.notna(current_row["flag_reasons"])
+                    else ""
+                ),
+            }
+        )
 
 
 if __name__ == "__main__":
