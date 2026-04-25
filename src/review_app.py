@@ -186,7 +186,7 @@ def main() -> None:
 
     # D-07: sync to ClearML button
     st.sidebar.divider()
-    if st.sidebar.button("Sync to ClearML", use_container_width=True):
+    if st.sidebar.button("Sync to ClearML", width="stretch"):
         # Persist any pending edits first
         write_manifest_atomic(manifest_path, manifest_df)
         try:
@@ -205,7 +205,7 @@ def main() -> None:
     # Sidebar — Prev/Next
     col_prev, col_next = st.sidebar.columns(2)
     if col_prev.button(
-        "◀ Prev", use_container_width=True, disabled=st.session_state["index"] <= 0
+        "◀ Prev", width="stretch", disabled=st.session_state["index"] <= 0
     ):
         st.session_state["index"] = max(0, st.session_state["index"] - 1)
         save_state(
@@ -214,7 +214,7 @@ def main() -> None:
         st.rerun()
     if col_next.button(
         "Next ▶",
-        use_container_width=True,
+        width="stretch",
         disabled=st.session_state["index"] >= len(filtered_paths) - 1,
     ):
         st.session_state["index"] = min(
@@ -240,7 +240,7 @@ def main() -> None:
     current_row = manifest_df.loc[manifest_df["crop_path"] == current_path].iloc[0]
 
     if Path(current_path).exists():
-        st.image(current_path, use_container_width=True)
+        st.image(current_path, width="stretch")
     else:
         st.error(f"Crop image missing on disk: {current_path}")
 
