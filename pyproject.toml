@@ -9,6 +9,7 @@ dependencies = [
     "numpy==2.4.4",
     "pandas==3.0.2",
     "clearml==2.1.5",
+    "streamlit==1.56.0",
 ]
 
 [dependency-groups]
