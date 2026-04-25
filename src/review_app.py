@@ -11,10 +11,14 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pandas as pd
-import streamlit as st
+# Streamlit runs this file as a script, adding src/ to sys.path instead of the project root.
+# Re-insert the project root so `src.*` absolute imports resolve correctly.
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.manifest_schema import MANIFEST_COLUMNS
+import pandas as pd  # noqa: E402
+import streamlit as st  # noqa: E402
+
+from src.manifest_schema import MANIFEST_COLUMNS  # noqa: E402
 from src.review_state import (
     VALID_FILTERS,
     ReviewState,
