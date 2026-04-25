@@ -39,8 +39,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+_STR_COLS = ("label", "notes", "flag_reasons")
+
+
 def _load_csv(path: Path, label: str) -> pd.DataFrame:
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, dtype={c: object for c in _STR_COLS})
     if list(df.columns) != MANIFEST_COLUMNS:
         st.error(
             f"{label} schema mismatch.\nExpected: {MANIFEST_COLUMNS}\nGot: {list(df.columns)}"
@@ -292,7 +295,7 @@ def main() -> None:
     # --- Crop image BELOW the edit surface, capped width so it doesn't overflow ---
     st.divider()
     if Path(current_path).exists():
-        st.image(current_path, width=480)
+        st.image(current_path, width=240)
     else:
         st.error(f"Crop image missing on disk: {current_path}")
 
