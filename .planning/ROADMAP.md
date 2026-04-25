@@ -43,9 +43,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Reviewer can type a Hebrew transcription, set a status, add notes, and see changes persisted to manifest.csv immediately
   3. Running review_to_clearml.py uploads the updated manifest and a labeling status summary to ClearML task manual_review_summary
 **Plans:** 3 plans
-- [ ] 02-01-PLAN.md — Streamlit review app skeleton: streamlit dep, review_state helper, manifest load + filter + Prev/Next navigation + position display
-- [ ] 02-02-PLAN.md — review_to_clearml.py CLI: status counts + manifest artifact upload to ClearML task manual_review_summary
-- [ ] 02-03-PLAN.md — Wire edit fields (RTL transcription, status, notes), autosave, sidebar status counts, sync button + human-verify checkpoint
+- [x] 02-01-PLAN.md — Streamlit review app skeleton: streamlit dep, review_state helper, manifest load + filter + Prev/Next navigation + position display
+- [x] 02-02-PLAN.md — review_to_clearml.py CLI: status counts + manifest artifact upload to ClearML task manual_review_summary
+- [x] 02-03-PLAN.md — Wire edit fields (RTL transcription, status, notes), autosave, sidebar status counts, sync button + human-verify checkpoint
 **UI hint**: yes
 
 ### Phase 3: Training & Evaluation
