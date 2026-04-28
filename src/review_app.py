@@ -1,6 +1,6 @@
 """review_app.py — Streamlit review interface with edit fields, autosave, and ClearML sync.
 
-Run with: `uv run streamlit run src/review_app.py -- --manifest outputs/manifest.csv`
+Run with: `uv run streamlit run src/review_app.py -- --manifest data/manifest.csv`
 """
 
 from __future__ import annotations

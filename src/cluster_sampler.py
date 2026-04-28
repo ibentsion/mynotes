@@ -4,7 +4,7 @@ Extracts HOG features from unlabeled crops, clusters with KMeans, and rewrites
 review_queue.csv so one representative per cluster comes first. Label those
 first to maximize information per annotation.
 
-Run: uv run python src/cluster_sampler.py --manifest outputs/manifest.csv --n_clusters 200
+Run: uv run python src/cluster_sampler.py --manifest data/manifest.csv --n_clusters 200
 """
 
 from __future__ import annotations
