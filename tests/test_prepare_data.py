@@ -8,10 +8,11 @@ from src.manifest_schema import MANIFEST_COLUMNS
 from tests.fixtures.make_synthetic_pdf import make_synthetic_pdf
 
 
-def test_manifest_columns_constant_has_thirteen_names():
+def test_manifest_columns_constant_has_fourteen_names():
     assert MANIFEST_COLUMNS == [
         "crop_path",
         "pdf_path",
+        "page_path",
         "page_num",
         "x",
         "y",

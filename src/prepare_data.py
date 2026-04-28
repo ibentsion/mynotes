@@ -106,6 +106,7 @@ def _process_pdf(
                 {
                     "crop_path": str(crop_path),
                     "pdf_path": str(pdf_path),
+                    "page_path": str(page_path),
                     "page_num": page_idx,
                     "x": x,
                     "y": y,

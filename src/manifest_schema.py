@@ -1,6 +1,7 @@
 MANIFEST_COLUMNS: list[str] = [
     "crop_path",
     "pdf_path",
+    "page_path",
     "page_num",
     "x",
     "y",

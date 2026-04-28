@@ -15,19 +15,19 @@ def valid_manifest(tmp_path: Path) -> Path:
         [
             {
                 "crop_path": str(tmp_path / "crops" / "a.png"),
-                "pdf_path": "x.pdf", "page_num": 1, "x": 0, "y": 0, "w": 10, "h": 10,
+                "pdf_path": "x.pdf", "page_path": "", "page_num": 1, "x": 0, "y": 0, "w": 10, "h": 10,
                 "area": 100, "is_flagged": True, "flag_reasons": "margin",
                 "status": "unlabeled", "label": "", "notes": "",
             },
             {
                 "crop_path": str(tmp_path / "crops" / "b.png"),
-                "pdf_path": "x.pdf", "page_num": 1, "x": 0, "y": 0, "w": 10, "h": 10,
+                "pdf_path": "x.pdf", "page_path": "", "page_num": 1, "x": 0, "y": 0, "w": 10, "h": 10,
                 "area": 100, "is_flagged": False, "flag_reasons": "",
                 "status": "labeled", "label": "שלום", "notes": "",
             },
             {
                 "crop_path": str(tmp_path / "crops" / "c.png"),
-                "pdf_path": "x.pdf", "page_num": 1, "x": 0, "y": 0, "w": 10, "h": 10,
+                "pdf_path": "x.pdf", "page_path": "", "page_num": 1, "x": 0, "y": 0, "w": 10, "h": 10,
                 "area": 100, "is_flagged": False, "flag_reasons": "",
                 "status": "skip", "label": "", "notes": "blurry",
             },
