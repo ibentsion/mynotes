@@ -155,12 +155,12 @@ def main() -> None:
     state_path = manifest_path.with_name(".review_state.json")
 
     st.set_page_config(page_title="Hebrew OCR Review", layout="wide")
-    # D-04: RTL CSS for all textareas (Hebrew transcription input)
     st.markdown(
-        "<style>textarea { direction: rtl; text-align: right; unicode-bidi: plaintext; }</style>",
+        "<style>textarea { direction: rtl; text-align: right; unicode-bidi: plaintext; }"
+        " #MainMenu, header, footer { visibility: hidden; }"
+        " .block-container { padding-top: 1rem; }</style>",
         unsafe_allow_html=True,
     )
-    st.title("Hebrew OCR — Review Queue")
 
     if not manifest_path.exists():
         st.error(f"Manifest not found: {manifest_path}")
@@ -266,12 +266,6 @@ def main() -> None:
         st.info(f"No crops match filter: {st.session_state['filter']}")
         return
 
-    # Position indicator (D-06)
-    st.caption(
-        f"Crop {st.session_state['index'] + 1} of {len(filtered_paths)}"
-        f" ({st.session_state['filter']})"
-    )
-
     current_path = filtered_paths[st.session_state["index"]]
     current_row = manifest_df.loc[manifest_df["crop_path"] == current_path].iloc[0]
 
@@ -283,14 +277,6 @@ def main() -> None:
     # --- Fast-path: Enter on label → save, mark labeled, advance ---
     def _on_label_enter() -> None:
         st.session_state["_label_submitted"] = st.session_state[label_key]
-
-    # REVW-03: single-line Hebrew input (RTL via global CSS); Enter submits
-    st.text_input(
-        "Label — press Enter to save & next",
-        value=current_label,
-        key=label_key,
-        on_change=_on_label_enter,
-    )
 
     if st.session_state.get("_label_submitted") is not None:
         submitted = st.session_state.pop("_label_submitted")
@@ -306,7 +292,7 @@ def main() -> None:
             st.session_state["_focus_label"] = True
             st.rerun()
 
-    # Re-focus the label input after advancing on Enter
+    # Re-focus the label input after advancing (zero-height, outside columns)
     if st.session_state.pop("_focus_label", False):
         st_components.html(
             "<script>setTimeout(function(){"
@@ -316,88 +302,104 @@ def main() -> None:
             height=0,
         )
 
-    # --- Status buttons (one-click) ---
-    statuses = list(KNOWN_STATUSES)
-    current_status_safe = current_status if current_status in KNOWN_STATUSES else statuses[0]
+    col_interact, col_image = st.columns([2, 3])
 
-    def _save_status(new: str) -> None:
-        if new == current_status:
-            return
-        updated = update_manifest_row(manifest_df, current_path, status=new)
-        st.session_state["manifest_df"] = updated
-        write_manifest_atomic(manifest_path, updated)
-        st.toast("Saved", icon="✅")
-        st.rerun()
-
-    st.write("**Status**")
-    for row_statuses in (statuses[:3], statuses[3:]):
-        cols = st.columns(len(row_statuses))
-        for col, s in zip(cols, row_statuses):
-            if col.button(
-                s,
-                key=f"status_btn_{s}_{current_path}",
-                type="primary" if s == current_status_safe else "secondary",
-                use_container_width=True,
-            ):
-                _save_status(s)
-
-    # --- Crop image ---
-    st.divider()
-    if Path(current_path).exists():
-        st.image(current_path, width=240)
-    else:
-        st.error(f"Crop image missing on disk: {current_path}")
-
-    # --- Context view (lazy, only rendered on demand) ---
-    page_path = str(current_row["page_path"]) if pd.notna(current_row["page_path"]) else ""
-    if page_path and Path(page_path).exists():
-        ctx_key = f"ctx_{current_path}"
-        if ctx_key not in st.session_state:
-            st.session_state[ctx_key] = None
-        col2x, col4x, _ = st.columns([1, 1, 5])
-        if col2x.button("2× context", key=f"ctx2_{current_path}"):
-            st.session_state[ctx_key] = None if st.session_state[ctx_key] == 2 else 2
-        if col4x.button("4× context", key=f"ctx4_{current_path}"):
-            st.session_state[ctx_key] = None if st.session_state[ctx_key] == 4 else 4
-        if st.session_state[ctx_key] is not None:
-            ctx_img = _render_context(
-                page_path,
-                int(current_row["x"]), int(current_row["y"]),
-                int(current_row["w"]), int(current_row["h"]),
-                st.session_state[ctx_key],
-            )
-            if ctx_img is not None:
-                st.image(ctx_img, caption=f"{st.session_state[ctx_key]}× context")
-    elif not page_path:
-        st.caption("Context view unavailable — re-run prepare-data to enable.")
-
-    # --- Notes (below image) ---
-    current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
-    new_notes = st.text_area("Notes", value=current_notes, height=68, key=f"notes_{current_path}")
-    if new_notes != current_notes:
-        manifest_df = update_manifest_row(manifest_df, current_path, notes=new_notes)
-        st.session_state["manifest_df"] = manifest_df
-        write_manifest_atomic(manifest_path, manifest_df)
-        st.toast("Saved", icon="✅")
-        st.rerun()
-
-    with st.expander("Crop metadata"):
-        st.write(
-            {
-                "page_num": int(current_row["page_num"]),
-                "x": int(current_row["x"]),
-                "y": int(current_row["y"]),
-                "w": int(current_row["w"]),
-                "h": int(current_row["h"]),
-                "area": int(current_row["area"]),
-                "is_flagged": bool(current_row["is_flagged"]),
-                "flag_reasons": (
-                    str(current_row["flag_reasons"])
-                    if pd.notna(current_row["flag_reasons"])
-                    else ""
-                ),
-            }
+    # ── Interaction column ──────────────────────────────────────────────────
+    with col_interact:
+        st.caption(
+            f"Crop {st.session_state['index'] + 1} of {len(filtered_paths)}"
+            f" ({st.session_state['filter']})"
         )
+
+        st.text_input(
+            "Label — press Enter to save & next",
+            value=current_label,
+            key=label_key,
+            on_change=_on_label_enter,
+        )
+
+        # Status buttons (one-click)
+        statuses = list(KNOWN_STATUSES)
+        current_status_safe = current_status if current_status in KNOWN_STATUSES else statuses[0]
+
+        def _save_status(new: str) -> None:
+            if new == current_status:
+                return
+            updated = update_manifest_row(manifest_df, current_path, status=new)
+            st.session_state["manifest_df"] = updated
+            write_manifest_atomic(manifest_path, updated)
+            st.toast("Saved", icon="✅")
+            st.rerun()
+
+        st.write("**Status**")
+        for row_statuses in (statuses[:3], statuses[3:]):
+            btn_cols = st.columns(len(row_statuses))
+            for btn_col, s in zip(btn_cols, row_statuses):
+                if btn_col.button(
+                    s,
+                    key=f"status_btn_{s}_{current_path}",
+                    type="primary" if s == current_status_safe else "secondary",
+                    use_container_width=True,
+                ):
+                    _save_status(s)
+
+        current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
+        new_notes = st.text_area(
+            "Notes", value=current_notes, height=100, key=f"notes_{current_path}"
+        )
+        if new_notes != current_notes:
+            manifest_df = update_manifest_row(manifest_df, current_path, notes=new_notes)
+            st.session_state["manifest_df"] = manifest_df
+            write_manifest_atomic(manifest_path, manifest_df)
+            st.toast("Saved", icon="✅")
+            st.rerun()
+
+        with st.expander("Crop metadata"):
+            st.write(
+                {
+                    "page_num": int(current_row["page_num"]),
+                    "x": int(current_row["x"]),
+                    "y": int(current_row["y"]),
+                    "w": int(current_row["w"]),
+                    "h": int(current_row["h"]),
+                    "area": int(current_row["area"]),
+                    "is_flagged": bool(current_row["is_flagged"]),
+                    "flag_reasons": (
+                        str(current_row["flag_reasons"])
+                        if pd.notna(current_row["flag_reasons"])
+                        else ""
+                    ),
+                }
+            )
+
+    # ── Image column ────────────────────────────────────────────────────────
+    with col_image:
+        if Path(current_path).exists():
+            st.image(current_path, width=240)
+        else:
+            st.error(f"Crop image missing on disk: {current_path}")
+
+        page_path = str(current_row["page_path"]) if pd.notna(current_row["page_path"]) else ""
+        if page_path and Path(page_path).exists():
+            ctx_key = f"ctx_{current_path}"
+            if ctx_key not in st.session_state:
+                st.session_state[ctx_key] = None
+            c2x, c4x, _ = st.columns([1, 1, 4])
+            if c2x.button("2× context", key=f"ctx2_{current_path}"):
+                st.session_state[ctx_key] = None if st.session_state[ctx_key] == 2 else 2
+            if c4x.button("4× context", key=f"ctx4_{current_path}"):
+                st.session_state[ctx_key] = None if st.session_state[ctx_key] == 4 else 4
+            if st.session_state[ctx_key] is not None:
+                ctx_img = _render_context(
+                    page_path,
+                    int(current_row["x"]), int(current_row["y"]),
+                    int(current_row["w"]), int(current_row["h"]),
+                    st.session_state[ctx_key],
+                )
+                if ctx_img is not None:
+                    st.image(ctx_img, use_container_width=True)
+        elif not page_path:
+            st.caption("Context view unavailable — re-run prepare-data to enable.")
 
 
 if __name__ == "__main__":
