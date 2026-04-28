@@ -10,6 +10,7 @@ dependencies = [
     "pandas==3.0.2",
     "clearml==2.1.5",
     "streamlit==1.56.0",
+    "scikit-learn>=1.5",
 ]
 
 [dependency-groups]
@@ -28,6 +29,7 @@ package = true
 
 [project.scripts]
 prepare-data = "src.prepare_data:main"
+cluster-sampler = "cluster_sampler:main"
 
 [tool.ruff]
 line-length = 100
