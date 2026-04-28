@@ -26,6 +26,7 @@ def detect_regions(
     dilation_kernel_w: int = 15,
     dilation_kernel_h: int = 3,
     dilation_iters: int = 3,
+    max_aspect_ratio: float = 8.0,
 ) -> np.ndarray:
     if binary.ndim != 2:
         raise ValueError(f"detect_regions expects 2D binary; got shape {binary.shape}")
@@ -35,4 +36,9 @@ def detect_regions(
     if num_labels <= 1:
         return np.empty((0, 5), dtype=np.int32)
     # stats cols: CC_STAT_LEFT, TOP, WIDTH, HEIGHT, AREA; skip background (label 0)
-    return stats[1:].astype(np.int32)
+    regions = stats[1:].astype(np.int32)
+    # Drop horizontal line segments (underlines) whose w/h exceeds max_aspect_ratio
+    heights = regions[:, 3].astype(float)
+    widths = regions[:, 2].astype(float)
+    ratios = np.where(heights > 0, widths / heights, np.inf)
+    return regions[ratios <= max_aspect_ratio]

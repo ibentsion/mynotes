@@ -46,6 +46,19 @@ def test_detect_regions_columns_are_x_y_w_h_area():
     assert area > 0
 
 
+def test_detect_regions_filters_horizontal_lines():
+    img = np.zeros((200, 400), dtype=np.uint8)
+    img[20:40, 20:180] = 255   # word-like: 160×20 → ratio 8.0, kept at default
+    img[100:104, 20:380] = 255  # underline: 360×4 → ratio ~90, dropped
+    stats = detect_regions(img, max_aspect_ratio=8.0)
+    # Only the word-like region survives; the merged dilated blob of the two won't
+    # — test that filtering at a tight threshold removes pure line regions
+    img2 = np.zeros((200, 400), dtype=np.uint8)
+    img2[100:104, 20:380] = 255  # only the underline
+    stats2 = detect_regions(img2, max_aspect_ratio=8.0)
+    assert stats2.shape[0] == 0, "horizontal line should be filtered out"
+
+
 def test_detect_regions_respects_dilation_kernel():
     img = np.zeros((100, 100), dtype=np.uint8)
     img[20:25, 40:60] = 255

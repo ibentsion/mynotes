@@ -35,6 +35,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--faint_thresh", type=int, default=200)
     p.add_argument("--aspect_lo", type=float, default=0.1)
     p.add_argument("--aspect_hi", type=float, default=10.0)
+    p.add_argument("--max_aspect_ratio", type=float, default=8.0,
+                   help="Drop regions with w/h above this (filters horizontal lines/underlines)")
     p.add_argument(
         "--dataset_name",
         type=str,
@@ -71,6 +73,7 @@ def _process_pdf(
             dilation_kernel_w=args.dilation_kernel_w,
             dilation_kernel_h=args.dilation_kernel_h,
             dilation_iters=args.dilation_iters,
+            max_aspect_ratio=args.max_aspect_ratio,
         )
         all_boxes: list[tuple[int, int, int, int]] = [
             (int(x), int(y), int(w), int(h)) for x, y, w, h, _ in stats
