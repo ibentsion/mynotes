@@ -15,8 +15,11 @@ from pathlib import Path
 # Re-insert the project root so `src.*` absolute imports resolve correctly.
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import cv2  # noqa: E402
+import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
+import streamlit.components.v1 as st_components  # noqa: E402
 
 from src.manifest_schema import MANIFEST_COLUMNS  # noqa: E402
 from src.review_state import (
@@ -44,6 +47,9 @@ _STR_COLS = ("label", "notes", "flag_reasons")
 
 def _load_csv(path: Path, label: str) -> pd.DataFrame:
     df = pd.read_csv(path, dtype={c: object for c in _STR_COLS})
+    # Backfill page_path for manifests generated before it was added to the schema
+    if "page_path" not in df.columns:
+        df.insert(df.columns.get_loc("page_num"), "page_path", "")
     if list(df.columns) != MANIFEST_COLUMNS:
         st.error(
             f"{label} schema mismatch.\nExpected: {MANIFEST_COLUMNS}\nGot: {list(df.columns)}"
@@ -118,6 +124,29 @@ def write_manifest_atomic(path: Path, df: pd.DataFrame) -> None:
             tmp_path.unlink()
 
 
+def _render_context(
+    page_path: str, x: int, y: int, w: int, h: int, scale: int
+) -> np.ndarray | None:
+    """Return an RGB image of the page region surrounding (x,y,w,h) at `scale` times crop size.
+
+    The crop bounding box is highlighted with a red rectangle.
+    """
+    page = cv2.imread(page_path, cv2.IMREAD_GRAYSCALE)
+    if page is None:
+        return None
+    page_h, page_w = page.shape
+    pad_x = w * (scale - 1) // 2
+    pad_y = h * (scale - 1) // 2
+    x1 = max(0, x - pad_x)
+    y1 = max(0, y - pad_y)
+    x2 = min(page_w, x + w + pad_x)
+    y2 = min(page_h, y + h + pad_y)
+    region = cv2.cvtColor(page[y1:y2, x1:x2], cv2.COLOR_GRAY2BGR)
+    rx, ry = x - x1, y - y1
+    cv2.rectangle(region, (rx, ry), (rx + w, ry + h), (0, 0, 255), 3)
+    return cv2.cvtColor(region, cv2.COLOR_BGR2RGB)
+
+
 def main() -> None:
     # streamlit forwards args after `--` on the command line
     args = _parse_args(sys.argv[1:])
@@ -175,37 +204,14 @@ def main() -> None:
         save_state(state_path, new_state)
         st.rerun()
 
-    # D-05: live status counts in sidebar
-    counts = summarize_status_counts(manifest_df)
-    flagged_count = int(manifest_df["is_flagged"].astype(bool).sum())
-    st.sidebar.divider()
-    st.sidebar.subheader("Status")
-    st.sidebar.metric("unlabeled", counts["unlabeled"])
-    st.sidebar.metric("flagged", flagged_count)
-    st.sidebar.metric("labeled", counts["labeled"])
-    st.sidebar.metric("skip", counts["skip"])
-    st.sidebar.metric("bad_seg", counts["bad_seg"])
-    st.sidebar.metric("merge_needed", counts["merge_needed"])
-
-    # D-07: sync to ClearML button
-    st.sidebar.divider()
-    if st.sidebar.button("Sync to ClearML", width="stretch"):
-        # Persist any pending edits first
-        write_manifest_atomic(manifest_path, manifest_df)
-        try:
-            synced = sync_review_to_clearml(manifest_path)
-            st.sidebar.success(f"Synced — {synced}")
-        except Exception as exc:  # noqa: BLE001
-            st.sidebar.error(f"Sync failed: {exc}")
-
-    # Compute filtered queue from ordered_df
+    # Compute filtered queue early so action buttons can use it
     filtered_paths = _filter_queue(ordered_df, st.session_state["filter"])
 
     # Clamp index
     if st.session_state["index"] >= len(filtered_paths):
         st.session_state["index"] = max(0, len(filtered_paths) - 1)
 
-    # Sidebar — Prev/Next
+    # Sidebar — Prev/Next (top, after filter)
     col_prev, col_next = st.sidebar.columns(2)
     if col_prev.button(
         "◀ Prev", width="stretch", disabled=st.session_state["index"] <= 0
@@ -227,6 +233,33 @@ def main() -> None:
             state_path, ReviewState(st.session_state["filter"], st.session_state["index"])
         )
         st.rerun()
+
+    # D-07: sync to ClearML button
+    st.sidebar.divider()
+    if st.sidebar.button("Sync to ClearML", width="stretch"):
+        # Persist any pending edits first
+        write_manifest_atomic(manifest_path, manifest_df)
+        try:
+            synced = sync_review_to_clearml(manifest_path)
+            st.sidebar.success(f"Synced — {synced}")
+        except Exception as exc:  # noqa: BLE001
+            st.sidebar.error(f"Sync failed: {exc}")
+
+    # D-05: live status counts in sidebar (bottom, table layout)
+    counts = summarize_status_counts(manifest_df)
+    flagged_count = int(manifest_df["is_flagged"].astype(bool).sum())
+    st.sidebar.divider()
+    st.sidebar.subheader("Status")
+    rows = [
+        ("unlabeled", counts["unlabeled"]),
+        ("flagged", flagged_count),
+        ("labeled", counts["labeled"]),
+        ("skip", counts["skip"]),
+        ("bad_seg", counts["bad_seg"]),
+        ("merge_needed", counts["merge_needed"]),
+    ]
+    table_md = "| | |\n|---|---|\n" + "\n".join(f"| {lbl} | {val} |" for lbl, val in rows)
+    st.sidebar.markdown(table_md)
 
     # Empty queue
     if not filtered_paths:
@@ -270,36 +303,83 @@ def main() -> None:
             next_idx = min(len(filtered_paths) - 1, st.session_state["index"] + 1)
             st.session_state["index"] = next_idx
             save_state(state_path, ReviewState(st.session_state["filter"], next_idx))
+            st.session_state["_focus_label"] = True
             st.rerun()
 
-    # --- Manual overrides: status and notes autosave on change ---
-    statuses = list(KNOWN_STATUSES)
-    status_index = statuses.index(current_status) if current_status in KNOWN_STATUSES else 0
-    new_status = st.selectbox(
-        "Status",
-        statuses,
-        index=status_index,
-        key=f"status_{current_path}",
-    )
-
-    current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
-    new_notes = st.text_area("Notes", value=current_notes, height=68, key=f"notes_{current_path}")
-
-    if new_status != current_status or new_notes != current_notes:
-        manifest_df = update_manifest_row(
-            manifest_df, current_path, status=new_status, notes=new_notes
+    # Re-focus the label input after advancing on Enter
+    if st.session_state.pop("_focus_label", False):
+        st_components.html(
+            "<script>setTimeout(function(){"
+            "var inputs=window.parent.document.querySelectorAll('input[type=\"text\"]');"
+            "if(inputs.length>0)inputs[0].focus();"
+            "},120);</script>",
+            height=0,
         )
-        st.session_state["manifest_df"] = manifest_df
-        write_manifest_atomic(manifest_path, manifest_df)
+
+    # --- Status buttons (one-click) ---
+    statuses = list(KNOWN_STATUSES)
+    current_status_safe = current_status if current_status in KNOWN_STATUSES else statuses[0]
+
+    def _save_status(new: str) -> None:
+        if new == current_status:
+            return
+        updated = update_manifest_row(manifest_df, current_path, status=new)
+        st.session_state["manifest_df"] = updated
+        write_manifest_atomic(manifest_path, updated)
         st.toast("Saved", icon="✅")
         st.rerun()
 
-    # --- Crop image BELOW the edit surface, capped width so it doesn't overflow ---
+    st.write("**Status**")
+    for row_statuses in (statuses[:3], statuses[3:]):
+        cols = st.columns(len(row_statuses))
+        for col, s in zip(cols, row_statuses):
+            if col.button(
+                s,
+                key=f"status_btn_{s}_{current_path}",
+                type="primary" if s == current_status_safe else "secondary",
+                use_container_width=True,
+            ):
+                _save_status(s)
+
+    # --- Crop image ---
     st.divider()
     if Path(current_path).exists():
         st.image(current_path, width=240)
     else:
         st.error(f"Crop image missing on disk: {current_path}")
+
+    # --- Context view (lazy, only rendered on demand) ---
+    page_path = str(current_row["page_path"]) if pd.notna(current_row["page_path"]) else ""
+    if page_path and Path(page_path).exists():
+        ctx_key = f"ctx_{current_path}"
+        if ctx_key not in st.session_state:
+            st.session_state[ctx_key] = None
+        col2x, col4x, _ = st.columns([1, 1, 5])
+        if col2x.button("2× context", key=f"ctx2_{current_path}"):
+            st.session_state[ctx_key] = None if st.session_state[ctx_key] == 2 else 2
+        if col4x.button("4× context", key=f"ctx4_{current_path}"):
+            st.session_state[ctx_key] = None if st.session_state[ctx_key] == 4 else 4
+        if st.session_state[ctx_key] is not None:
+            ctx_img = _render_context(
+                page_path,
+                int(current_row["x"]), int(current_row["y"]),
+                int(current_row["w"]), int(current_row["h"]),
+                st.session_state[ctx_key],
+            )
+            if ctx_img is not None:
+                st.image(ctx_img, caption=f"{st.session_state[ctx_key]}× context")
+    elif not page_path:
+        st.caption("Context view unavailable — re-run prepare-data to enable.")
+
+    # --- Notes (below image) ---
+    current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
+    new_notes = st.text_area("Notes", value=current_notes, height=68, key=f"notes_{current_path}")
+    if new_notes != current_notes:
+        manifest_df = update_manifest_row(manifest_df, current_path, notes=new_notes)
+        st.session_state["manifest_df"] = manifest_df
+        write_manifest_atomic(manifest_path, manifest_df)
+        st.toast("Saved", icon="✅")
+        st.rerun()
 
     with st.expander("Crop metadata"):
         st.write(
