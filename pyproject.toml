@@ -30,6 +30,7 @@ package = true
 [project.scripts]
 prepare-data = "src.prepare_data:main"
 cluster-sampler = "cluster_sampler:main"
+backfill-page-paths = "backfill_page_paths:main"
 
 [tool.ruff]
 line-length = 100
