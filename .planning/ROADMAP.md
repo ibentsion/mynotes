@@ -58,7 +58,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Best model checkpoint and charset.json are saved to disk after training
   4. evaluate.py loads the checkpoint and writes eval_report.csv with per-crop predictions, CER, and exact match rate
   5. ClearML tasks train_baseline_ctc and evaluate_model log all metrics, artifacts, and CLI hyperparameters
-**Plans**: TBD
+**Plans:** 3 plans
+- [ ] 03-01-PLAN.md — Add torch CPU-only dependency and create src/ctc_utils.py shared module (CRNN model, charset I/O, greedy decode, CER, half-page split, collate, device resolver) with comprehensive unit tests
+- [ ] 03-02-PLAN.md — Implement src/train_ctc.py CLI: filter labeled crops, build charset, half-page train/val split, CRNN+CTC training on CPU, save best checkpoint+charset, log per-epoch scalars and artifacts to ClearML task train_baseline_ctc
+- [ ] 03-03-PLAN.md — Implement src/evaluate.py CLI: load checkpoint+charset, reproduce val split, run greedy CTC decode, write eval_report.csv with image_path/target/prediction/is_exact, log final CER + exact_match_rate to ClearML task evaluate_model
 
 ## Progress
 
@@ -69,4 +72,4 @@ Phases execute in numeric order: 1 → 2 → 3
 |-------|----------------|--------|-----------|
 | 1. Data Pipeline | 4/4 | Complete   | 2026-04-21 |
 | 2. Review & Annotation | 0/? | Not started | - |
-| 3. Training & Evaluation | 0/? | Not started | - |
+| 3. Training & Evaluation | 0/3 | Planned | - |
