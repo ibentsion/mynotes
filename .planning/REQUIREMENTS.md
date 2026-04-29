@@ -40,10 +40,10 @@
 ### Training
 
 - [ ] **TRAN-01**: train_ctc.py loads only crops with status=labeled from manifest.csv
-- [ ] **TRAN-02**: Charset is built dynamically from labeled Hebrew text with Unicode normalization
-- [ ] **TRAN-03**: Train/val split is done by page (not random crop) to prevent leakage
-- [ ] **TRAN-04**: Model is CRNN: CNN feature extractor → BiLSTM → CTC loss
-- [ ] **TRAN-05**: Training runs on CPU (device auto-detected via torch.device)
+- [x] **TRAN-02**: Charset is built dynamically from labeled Hebrew text with Unicode normalization
+- [x] **TRAN-03**: Train/val split is done by page (not random crop) to prevent leakage
+- [x] **TRAN-04**: Model is CRNN: CNN feature extractor → BiLSTM → CTC loss
+- [x] **TRAN-05**: Training runs on CPU (device auto-detected via torch.device)
 - [ ] **TRAN-06**: Best model checkpoint and charset.json are saved to disk
 - [ ] **TRAN-07**: Training hyperparameters are passed via CLI and connected to ClearML via Task.connect()
 - [ ] **TRAN-08**: ClearML task `train_baseline_ctc` logs: train loss, val loss, val CER per epoch; uploads checkpoint, charset.json, training config
@@ -51,7 +51,7 @@
 ### Evaluation
 
 - [ ] **EVAL-01**: evaluate.py runs inference on the validation set using the saved checkpoint
-- [ ] **EVAL-02**: CER is computed on validation set
+- [x] **EVAL-02**: CER is computed on validation set
 - [ ] **EVAL-03**: eval_report.csv is exported: image_path, target, prediction, is_exact
 - [ ] **EVAL-04**: ClearML task `evaluate_model` logs final CER, exact match rate, and uploads eval_report.csv
 
@@ -121,15 +121,15 @@
 | SYNC-01 | Phase 2 | Complete |
 | SYNC-02 | Phase 2 | Complete |
 | TRAN-01 | Phase 3 | Pending |
-| TRAN-02 | Phase 3 | Pending |
-| TRAN-03 | Phase 3 | Pending |
-| TRAN-04 | Phase 3 | Pending |
-| TRAN-05 | Phase 3 | Pending |
+| TRAN-02 | Phase 3 | Complete |
+| TRAN-03 | Phase 3 | Complete |
+| TRAN-04 | Phase 3 | Complete |
+| TRAN-05 | Phase 3 | Complete |
 | TRAN-06 | Phase 3 | Pending |
 | TRAN-07 | Phase 3 | Pending |
 | TRAN-08 | Phase 3 | Pending |
 | EVAL-01 | Phase 3 | Pending |
-| EVAL-02 | Phase 3 | Pending |
+| EVAL-02 | Phase 3 | Complete |
 | EVAL-03 | Phase 3 | Pending |
 | EVAL-04 | Phase 3 | Pending |
 

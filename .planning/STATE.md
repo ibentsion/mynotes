@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-04-28T19:13:59.752Z"
-last_activity: 2026-04-25
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-04-29T17:30:49.755Z"
+last_activity: 2026-04-29
 progress:
   total_phases: 3
   completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 10
+  completed_plans: 8
   percent: 5
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** A reviewable, labeled dataset of personal Hebrew handwriting that a baseline OCR model can train on
-**Current focus:** Phase 01 — data-pipeline
+**Current focus:** Phase 03 — training-evaluation
 
 ## Current Position
 
-Phase: 3 of 3 (training & evaluation)
-Plan: Not started
+Phase: 03 (training-evaluation) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-04-25
+Last activity: 2026-04-29
 
 Progress: [█░░░░░░░░░] 5%
 
@@ -56,6 +56,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 01-data-pipeline P03 | 2 | 2 tasks | 4 files |
 | Phase 01-data-pipeline P04 | 35 | 2 tasks | 7 files |
 | Phase 02-review-annotation P02 | 4 | 2 tasks | 2 files |
+| Phase 03 P01 | 6 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -78,6 +79,8 @@ Recent decisions affecting current work:
 - [Phase 02-review-annotation]: Pre-flight parse_known_args before Task.init catches missing manifest typos without spawning an empty ClearML task
 - [Phase 02-review-annotation]: sync_review_to_clearml returns dict[str,int] so Streamlit caller can display count confirmation without re-reading CSV
 - [Phase 02-review-annotation]: KNOWN_STATUSES tuple ensures zero-filled output dict is consistent run-to-run for dashboard axis stability
+- [Phase 03]: NFC normalization for Hebrew charset — standard Unicode form, composes combining marks into precomposed chars (TRAN-02)
+- [Phase 03]: ty: ignore on int(idx) from df.iterrows() — pandas types index labels as Hashable but runtime is int for default RangeIndex
 
 ### Pending Todos
 
@@ -89,6 +92,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-28T19:13:59.747Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-training-evaluation/03-CONTEXT.md
+Last session: 2026-04-29T17:30:49.750Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None
