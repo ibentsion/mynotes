@@ -248,7 +248,7 @@ def test_charset_build_receives_labeled_labels(mock_task_cls, tmp_path, monkeypa
 
 @patch("src.train_ctc.Task")
 def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypatch):
-    """Verify that no half-page unit appears in both train and val splits."""
+    """Verify that no half-page unit appears in both train and val splits (in-process)."""
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
@@ -275,37 +275,35 @@ def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypa
         rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label="דה"))
 
     manifest = tmp_path / "manifest.csv"
+    out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    captured_split: list[tuple] = []
-    captured_units: list[dict] = []
-
-    original_split_units = None
     from src import ctc_utils
+    from src.train_ctc import main
 
+    captured_split: list[tuple] = []
     original_split_units = ctc_utils.split_units
 
     def spy_split_units(units, val_frac=0.2):
-        captured_units.append(dict(units))
         train_keys, val_keys = original_split_units(units, val_frac=val_frac)
-        captured_split.append((train_keys, val_keys))
+        captured_split.append((list(train_keys), list(val_keys)))
         return train_keys, val_keys
 
     with patch("src.train_ctc.split_units", side_effect=spy_split_units):
-        result = _run_cli(
-            [
-                "--manifest",
-                str(manifest),
-                "--output_dir",
-                str(tmp_path / "out"),
-                "--epochs",
-                "1",
-                "--batch_size",
-                "2",
-            ]
-        )
+        argv_backup = sys.argv[:]
+        sys.argv = [
+            "src.train_ctc",
+            "--manifest", str(manifest),
+            "--output_dir", str(out_dir),
+            "--epochs", "1",
+            "--batch_size", "2",
+        ]
+        try:
+            rc = main()
+        finally:
+            sys.argv = argv_backup
 
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert rc == 0
     assert len(captured_split) == 1
     train_keys, val_keys = captured_split[0]
     assert set(train_keys).isdisjoint(set(val_keys)), "Page units appear in both train and val!"
