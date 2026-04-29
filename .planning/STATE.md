@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 03-01-PLAN.md
-last_updated: "2026-04-29T17:30:49.755Z"
+stopped_at: Completed 03-02-PLAN.md
+last_updated: "2026-04-29T17:40:13.867Z"
 last_activity: 2026-04-29
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 10
-  completed_plans: 8
+  completed_plans: 9
   percent: 5
 ---
 
@@ -26,7 +26,7 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 ## Current Position
 
 Phase: 03 (training-evaluation) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-04-29
 
@@ -57,6 +57,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 01-data-pipeline P04 | 35 | 2 tasks | 7 files |
 | Phase 02-review-annotation P02 | 4 | 2 tasks | 2 files |
 | Phase 03 P01 | 6 | 2 tasks | 4 files |
+| Phase 03-training-evaluation P02 | 7 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -81,6 +82,9 @@ Recent decisions affecting current work:
 - [Phase 02-review-annotation]: KNOWN_STATUSES tuple ensures zero-filled output dict is consistent run-to-run for dashboard axis stability
 - [Phase 03]: NFC normalization for Hebrew charset — standard Unicode form, composes combining marks into precomposed chars (TRAN-02)
 - [Phase 03]: ty: ignore on int(idx) from df.iterrows() — pandas types index labels as Hashable but runtime is int for default RangeIndex
+- [Phase 03-training-evaluation]: In-process spy for leakage test: subprocess can't see in-process patches; test uses sys.argv injection + @patch('src.train_ctc.Task')
+- [Phase 03-training-evaluation]: noqa: F401 on Task import in train_ctc.py: unused but required for @patch('src.train_ctc.Task') test patchability (established pattern)
+- [Phase 03-training-evaluation]: CropDataset.__getitem__ parameter named 'index' not 'idx' for ty LSP compliance with parent Dataset class
 
 ### Pending Todos
 
@@ -92,6 +96,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-04-29T17:30:49.750Z
-Stopped at: Completed 03-01-PLAN.md
+Last session: 2026-04-29T17:40:13.862Z
+Stopped at: Completed 03-02-PLAN.md
 Resume file: None

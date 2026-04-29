@@ -39,14 +39,14 @@
 
 ### Training
 
-- [ ] **TRAN-01**: train_ctc.py loads only crops with status=labeled from manifest.csv
+- [x] **TRAN-01**: train_ctc.py loads only crops with status=labeled from manifest.csv
 - [x] **TRAN-02**: Charset is built dynamically from labeled Hebrew text with Unicode normalization
 - [x] **TRAN-03**: Train/val split is done by page (not random crop) to prevent leakage
 - [x] **TRAN-04**: Model is CRNN: CNN feature extractor → BiLSTM → CTC loss
 - [x] **TRAN-05**: Training runs on CPU (device auto-detected via torch.device)
-- [ ] **TRAN-06**: Best model checkpoint and charset.json are saved to disk
-- [ ] **TRAN-07**: Training hyperparameters are passed via CLI and connected to ClearML via Task.connect()
-- [ ] **TRAN-08**: ClearML task `train_baseline_ctc` logs: train loss, val loss, val CER per epoch; uploads checkpoint, charset.json, training config
+- [x] **TRAN-06**: Best model checkpoint and charset.json are saved to disk
+- [x] **TRAN-07**: Training hyperparameters are passed via CLI and connected to ClearML via Task.connect()
+- [x] **TRAN-08**: ClearML task `train_baseline_ctc` logs: train loss, val loss, val CER per epoch; uploads checkpoint, charset.json, training config
 
 ### Evaluation
 
@@ -120,14 +120,14 @@
 | REVW-06 | Phase 2 | Pending |
 | SYNC-01 | Phase 2 | Complete |
 | SYNC-02 | Phase 2 | Complete |
-| TRAN-01 | Phase 3 | Pending |
+| TRAN-01 | Phase 3 | Complete |
 | TRAN-02 | Phase 3 | Complete |
 | TRAN-03 | Phase 3 | Complete |
 | TRAN-04 | Phase 3 | Complete |
 | TRAN-05 | Phase 3 | Complete |
-| TRAN-06 | Phase 3 | Pending |
-| TRAN-07 | Phase 3 | Pending |
-| TRAN-08 | Phase 3 | Pending |
+| TRAN-06 | Phase 3 | Complete |
+| TRAN-07 | Phase 3 | Complete |
+| TRAN-08 | Phase 3 | Complete |
 | EVAL-01 | Phase 3 | Pending |
 | EVAL-02 | Phase 3 | Complete |
 | EVAL-03 | Phase 3 | Pending |
