@@ -12,23 +12,13 @@ A reviewable, labeled dataset of personal Hebrew handwriting that a baseline OCR
 
 ### Validated
 
-(None yet — ship to validate)
+Validated in Phase 1: PDF ingestion, region detection, heuristic flagging, ClearML task infrastructure
+Validated in Phase 2: Streamlit review app, ClearML sync, manifest persistence
+Validated in Phase 3: CRNN+CTC training CLI, CER evaluation, eval_report.csv export, ClearML metric logging
 
 ### Active
 
-- [ ] Convert scanned PDFs (from Gmail/CamScanner) to page images
-- [ ] Detect handwriting regions on each page (region-first, not strict line segmentation)
-- [ ] Flag suspicious regions via heuristics (angle, overlap, size, aspect ratio, faintness)
-- [ ] Streamlit review app: view crop, transcribe text, set status (unlabeled/labeled/skip/bad_seg/merge_needed), add notes
-- [ ] Labeling priority queue: flagged/hard first, then large/mixed, then diverse, then easy
-- [ ] CRNN+CTC baseline model: CNN → BiLSTM → CTC, trained on grayscale crops
-- [ ] Train/val split by page (not random crop) to prevent leakage
-- [ ] Dynamic charset built from labeled Hebrew text, with normalization
-- [ ] CER evaluation on validation set, exported as eval_report.csv
-- [ ] ClearML integration: Task init, artifact upload, metric logging in all pipeline scripts
-- [ ] ClearML dataset versioning for page images, crops, and manifests
-- [ ] clearml_utils.py helper module for shared Task/artifact/dataset operations
-- [ ] CLI-friendly scripts with explicit, tracked arguments
+(All v1 requirements complete — milestone shipped)
 
 ### Out of Scope
 
@@ -90,4 +80,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-21 after initialization*
+*Last updated: 2026-04-30 after Phase 3 completion — v1.0 milestone complete*

@@ -50,10 +50,10 @@
 
 ### Evaluation
 
-- [ ] **EVAL-01**: evaluate.py runs inference on the validation set using the saved checkpoint
+- [x] **EVAL-01**: evaluate.py runs inference on the validation set using the saved checkpoint
 - [x] **EVAL-02**: CER is computed on validation set
-- [ ] **EVAL-03**: eval_report.csv is exported: image_path, target, prediction, is_exact
-- [ ] **EVAL-04**: ClearML task `evaluate_model` logs final CER, exact match rate, and uploads eval_report.csv
+- [x] **EVAL-03**: eval_report.csv is exported: image_path, target, prediction, is_exact
+- [x] **EVAL-04**: ClearML task `evaluate_model` logs final CER, exact match rate, and uploads eval_report.csv
 
 ### ClearML Infrastructure
 
@@ -128,10 +128,10 @@
 | TRAN-06 | Phase 3 | Complete |
 | TRAN-07 | Phase 3 | Complete |
 | TRAN-08 | Phase 3 | Complete |
-| EVAL-01 | Phase 3 | Pending |
+| EVAL-01 | Phase 3 | Complete |
 | EVAL-02 | Phase 3 | Complete |
-| EVAL-03 | Phase 3 | Pending |
-| EVAL-04 | Phase 3 | Pending |
+| EVAL-03 | Phase 3 | Complete |
+| EVAL-04 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 37 total
