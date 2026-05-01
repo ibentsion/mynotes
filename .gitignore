@@ -10,12 +10,7 @@ __pycache__/
 .python-version.local
 
 # Personal data (privacy-sensitive — never commit)
-data/pdfs/*
-data/pages/*
-data/crops/*
-!data/pdfs/.gitkeep
-!data/pages/.gitkeep
-!data/crops/.gitkeep
+data/
 
 # Pipeline outputs
 outputs/*
