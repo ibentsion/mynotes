@@ -157,8 +157,7 @@ def main() -> None:
     st.set_page_config(page_title="Hebrew OCR Review", layout="wide")
     st.markdown(
         "<style>textarea { direction: rtl; text-align: right; unicode-bidi: plaintext; }"
-        " #MainMenu, header, footer { visibility: hidden; }"
-        " .block-container { padding-top: 1rem; }</style>",
+        " #MainMenu, footer { visibility: hidden; }</style>",
         unsafe_allow_html=True,
     )
 
@@ -273,6 +272,11 @@ def main() -> None:
     current_label = str(current_row["label"]) if pd.notna(current_row["label"]) else ""
     current_notes = str(current_row["notes"]) if pd.notna(current_row["notes"]) else ""
     label_key = f"label_{current_path}"
+    _hist_key = f"_lhist_{current_path}"
+    _hist_pos_key = f"_lhist_pos_{current_path}"
+    if _hist_key not in st.session_state:
+        st.session_state[_hist_key] = [current_label]
+        st.session_state[_hist_pos_key] = 0
 
     # --- Fast-path: Enter on label → save, mark labeled, advance ---
     def _on_label_enter() -> None:
@@ -281,6 +285,13 @@ def main() -> None:
     if st.session_state.get("_label_submitted") is not None:
         submitted = st.session_state.pop("_label_submitted")
         if submitted:
+            _hist = st.session_state[_hist_key]
+            _pos = st.session_state[_hist_pos_key]
+            _new_hist = _hist[: _pos + 1]
+            if not _new_hist or _new_hist[-1] != submitted:
+                _new_hist.append(submitted)
+            st.session_state[_hist_key] = _new_hist
+            st.session_state[_hist_pos_key] = len(_new_hist) - 1
             manifest_df = update_manifest_row(
                 manifest_df, current_path, label=submitted, status="labeled"
             )
@@ -310,6 +321,30 @@ def main() -> None:
             f"Crop {st.session_state['index'] + 1} of {len(filtered_paths)}"
             f" ({st.session_state['filter']})"
         )
+
+        _hist = st.session_state[_hist_key]
+        _pos = st.session_state[_hist_pos_key]
+        _bcol, _fcol, _ = st.columns([1, 1, 6])
+        if _bcol.button("◀", disabled=_pos <= 0, key=f"lhist_back_{current_path}",
+                        help="Undo label"):
+            _new_pos = _pos - 1
+            _prev = _hist[_new_pos]
+            st.session_state[_hist_pos_key] = _new_pos
+            st.session_state[label_key] = _prev
+            manifest_df = update_manifest_row(manifest_df, current_path, label=_prev)
+            st.session_state["manifest_df"] = manifest_df
+            write_manifest_atomic(manifest_path, manifest_df)
+            st.rerun()
+        if _fcol.button("▶", disabled=_pos >= len(_hist) - 1,
+                        key=f"lhist_fwd_{current_path}", help="Redo label"):
+            _new_pos = _pos + 1
+            _next = _hist[_new_pos]
+            st.session_state[_hist_pos_key] = _new_pos
+            st.session_state[label_key] = _next
+            manifest_df = update_manifest_row(manifest_df, current_path, label=_next)
+            st.session_state["manifest_df"] = manifest_df
+            write_manifest_atomic(manifest_path, manifest_df)
+            st.rerun()
 
         st.text_input(
             "Label — press Enter to save & next",
@@ -352,7 +387,6 @@ def main() -> None:
             st.session_state["manifest_df"] = manifest_df
             write_manifest_atomic(manifest_path, manifest_df)
             st.toast("Saved", icon="✅")
-            st.rerun()
 
         with st.expander("Crop metadata"):
             st.write(
@@ -387,8 +421,10 @@ def main() -> None:
             c2x, c4x, _ = st.columns([1, 1, 4])
             if c2x.button("2× context", key=f"ctx2_{current_path}"):
                 st.session_state[ctx_key] = None if st.session_state[ctx_key] == 2 else 2
+                st.session_state.pop("_label_submitted", None)
             if c4x.button("4× context", key=f"ctx4_{current_path}"):
                 st.session_state[ctx_key] = None if st.session_state[ctx_key] == 4 else 4
+                st.session_state.pop("_label_submitted", None)
             if st.session_state[ctx_key] is not None:
                 ctx_img = _render_context(
                     page_path,
