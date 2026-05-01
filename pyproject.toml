@@ -30,6 +30,9 @@ package = true
 
 [project.scripts]
 prepare-data = "src.prepare_data:main"
+train-ctc = "src.train_ctc:main"
+evaluate = "src.evaluate:main"
+experiment = "src.experiment:main"
 cluster-sampler = "cluster_sampler:main"
 backfill-page-paths = "backfill_page_paths:main"
 
