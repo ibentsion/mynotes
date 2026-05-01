@@ -29,7 +29,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Evaluate a trained CRNN+CTC checkpoint on the val split."
     )
-    p.add_argument("--manifest", type=Path, required=True)
+    p.add_argument("--manifest", type=Path, default=Path("data/manifest.csv"))
     p.add_argument("--output_dir", type=Path, default=Path("outputs/model"))
     p.add_argument("--val_frac", type=float, default=0.2)
     p.add_argument("--batch_size", type=int, default=8)

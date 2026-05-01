@@ -10,7 +10,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description="Run train_ctc then evaluate end-to-end. Accepts all train hyperparams."
     )
-    p.add_argument("--manifest", type=Path, required=True)
+    p.add_argument("--manifest", type=Path, default=Path("data/manifest.csv"))
     p.add_argument("--output_dir", type=Path, default=Path("outputs/model"))
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch_size", type=int, default=8)
