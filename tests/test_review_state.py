@@ -59,4 +59,4 @@ def test_with_filter_resets_index_and_validates(tmp_path):
 
 
 def test_valid_filters_constant():
-    assert VALID_FILTERS == ("unlabeled", "flagged", "labeled", "all")
+    assert VALID_FILTERS == ("unlabeled", "flagged", "labeled", "auto_labeled", "all")
