@@ -121,6 +121,8 @@ def _run() -> int:
             text = _label_one(client, args.model, crop_path)
             df.at[idx, "label"] = text
             df.at[idx, "status"] = "labeled"
+            if pd.isna(df.at[idx, "notes"]) or str(df.at[idx, "notes"]).strip() == "":
+                df.at[idx, "notes"] = f"auto:{args.model}"
             write_manifest_atomic(args.manifest, df)
             success += 1
         except Exception as exc:
