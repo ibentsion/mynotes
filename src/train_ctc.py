@@ -35,7 +35,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--val_frac", type=float, default=0.2)
-    p.add_argument("--min_labeled", type=int, default=10)
+    p.add_argument("--min_labeled", type=int, default=100)
     p.add_argument("--num_workers", type=int, default=0)
     return p
 

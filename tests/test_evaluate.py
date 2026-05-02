@@ -222,6 +222,8 @@ def test_evaluate_after_train_writes_report_with_correct_schema(tmp_path):
             "2",
             "--lr",
             "1e-3",
+            "--min_labeled",
+            "12",
         ],
     )
     assert train_result.returncode == 0, f"train stderr={train_result.stderr}"

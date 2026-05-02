@@ -20,25 +20,58 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 import streamlit.components.v1 as st_components  # noqa: E402
+import torch  # noqa: E402
 
+from src.ctc_utils import (  # noqa: E402
+    CRNN,
+    load_charset,
+    predict_single,
+    resolve_device,
+)
 from src.manifest_schema import MANIFEST_COLUMNS  # noqa: E402
-from src.review_state import (
+from src.review_state import (  # noqa: E402
     VALID_FILTERS,
     ReviewState,
     load_state,
     save_state,
     with_filter,
 )
-from src.review_to_clearml import (
+from src.review_to_clearml import (  # noqa: E402
     KNOWN_STATUSES,
     summarize_status_counts,
     sync_review_to_clearml,
 )
 
 
+@st.cache_resource
+def _load_model(model_dir: str) -> tuple[CRNN, list[str], torch.device] | None:
+    """Load CRNN + charset from model_dir. Returns None if either artifact is missing.
+
+    model_dir is str (not Path) so Streamlit can hash it for the cache key.
+    """
+    md = Path(model_dir)
+    ckpt = md / "checkpoint.pt"
+    cs = md / "charset.json"
+    if not ckpt.exists() or not cs.exists():
+        return None
+    charset = load_charset(cs)
+    device = resolve_device()
+    model = CRNN(num_classes=len(charset) + 1).to(device)
+    state = torch.load(ckpt, map_location=device, weights_only=True)
+    model.load_state_dict(state)
+    model.eval()
+    return model, charset, device
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Streamlit review app.")
     parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument(
+        "--model_dir",
+        type=Path,
+        default=None,
+        help="Optional outputs/model dir; enables prediction suggestions on unlabeled crops.",
+    )
     return parser.parse_args(argv)
 
 
@@ -151,6 +184,13 @@ def main() -> None:
     # streamlit forwards args after `--` on the command line
     args = _parse_args(sys.argv[1:])
     manifest_path: Path = args.manifest
+    model_bundle = None
+    if args.model_dir is not None:
+        model_bundle = _load_model(str(args.model_dir))
+        if model_bundle is None:
+            st.sidebar.warning(
+                f"Model not loaded — checkpoint.pt / charset.json missing in {args.model_dir}"
+            )
     review_queue_path = manifest_path.with_name("review_queue.csv")
     state_path = manifest_path.with_name(".review_state.json")
 
@@ -346,6 +386,16 @@ def main() -> None:
             write_manifest_atomic(manifest_path, manifest_df)
             st.rerun()
 
+        if model_bundle is not None and current_status == "unlabeled":
+            model, charset, device = model_bundle
+            with torch.no_grad():
+                suggestion = predict_single(model, charset, device, current_path)
+            st.info(f"Model suggests: {suggestion}")
+            if st.button("Accept ->", key=f"accept_pred_{current_path}"):
+                # Reuse existing save/advance flow — same path as Enter on the text_input.
+                st.session_state["_label_submitted"] = suggestion
+                st.rerun()
+
         st.text_input(
             "Label — press Enter to save & next",
             value=current_label,
@@ -369,7 +419,7 @@ def main() -> None:
         st.write("**Status**")
         for row_statuses in (statuses[:3], statuses[3:]):
             btn_cols = st.columns(len(row_statuses))
-            for btn_col, s in zip(btn_cols, row_statuses):
+            for btn_col, s in zip(btn_cols, row_statuses, strict=True):
                 if btn_col.button(
                     s,
                     key=f"status_btn_{s}_{current_path}",

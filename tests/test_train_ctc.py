@@ -80,7 +80,7 @@ def test_build_parser_has_documented_defaults():
     assert args.batch_size == 8
     assert args.lr == pytest.approx(1e-3)
     assert args.val_frac == pytest.approx(0.2)
-    assert args.min_labeled == 10
+    assert args.min_labeled == 100
     assert args.num_workers == 0
 
 
@@ -184,6 +184,8 @@ def test_empty_label_guard_exits_4(tmp_path):
             str(manifest),
             "--output_dir",
             str(tmp_path / "out"),
+            "--min_labeled",
+            "10",
         ]
     )
     assert result.returncode == 4, result.stderr
@@ -297,6 +299,7 @@ def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypa
             "--output_dir", str(out_dir),
             "--epochs", "1",
             "--batch_size", "2",
+            "--min_labeled", "12",
         ]
         try:
             rc = main()
@@ -359,6 +362,8 @@ def test_train_one_epoch_writes_checkpoint_and_charset(tmp_path):
             "2",
             "--lr",
             "1e-3",
+            "--min_labeled",
+            "12",
         ]
     )
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
