@@ -58,9 +58,7 @@ def _label_one(client: OpenAI, model: str, crop_path: Path) -> str:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Auto-label unlabeled crops via OpenAI vision")
     parser.add_argument("--manifest", type=Path, default=Path("data/manifest.csv"))
-    parser.add_argument(
-        "--model", default="gpt-4o-mini", choices=["gpt-4o-mini", "gpt-4o"]
-    )
+    parser.add_argument("--model", default="gpt-4o-mini")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--limit", type=int, default=None)
     return parser.parse_args(argv)
