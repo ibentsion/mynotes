@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 Phase: 03
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-05-02 - Completed quick task 260502-e75: Add auto-label CLI that sends unlabeled crops to OpenAI vision API and writes labels back to manifest.csv
+Last activity: 2026-05-02 - Completed quick task 260502-e71: Add model prediction display to review app and lower training barrier to 100 labeled crops
 
 Progress: [█░░░░░░░░░] 5%
 
@@ -99,6 +99,7 @@ None yet.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260502-e75 | Add auto-label CLI that sends unlabeled crops to OpenAI vision API and writes labels back to manifest.csv | 2026-05-02 | d457d7b | [260502-e75-add-auto-label-cli-that-sends-unlabeled-](./quick/260502-e75-add-auto-label-cli-that-sends-unlabeled-/) |
+| 260502-e71 | Add model prediction display to review app and lower training barrier to 100 labeled crops | 2026-05-02 | 6878b3d | [260502-e71-add-model-prediction-display-to-review-a](./quick/260502-e71-add-model-prediction-display-to-review-a/) |
 
 ## Session Continuity
 
