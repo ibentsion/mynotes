@@ -24,3 +24,6 @@ clearml.conf.local
 .ruff_cache/
 .pytest_cache/
 .ty_cache/
+
+# Claude Code worktrees
+.claude/worktrees/
