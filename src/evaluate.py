@@ -36,11 +36,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    # Pitfall 2: Task.init BEFORE argparse.parse_args()
-    task = init_task("handwriting-hebrew-ocr", "evaluate_model", tags=["phase-3"])
-
     parser = _build_parser()
     args = parser.parse_args()
+
+    task = init_task("handwriting-hebrew-ocr", "evaluate_model", tags=["phase-3"])
 
     if not args.manifest.exists():
         print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
