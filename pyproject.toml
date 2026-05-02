@@ -12,6 +12,7 @@ dependencies = [
     "streamlit==1.56.0",
     "scikit-learn>=1.5",
     "torch==2.11.0",
+    "openai>=1.0",
 ]
 
 [dependency-groups]
@@ -36,6 +37,7 @@ prepare-data = "src.prepare_data:main"
 train-ctc = "src.train_ctc:main"
 evaluate = "src.evaluate:main"
 experiment = "src.experiment:main"
+auto-label = "src.auto_label:main"
 cluster-sampler = "cluster_sampler:main"
 backfill-page-paths = "backfill_page_paths:main"
 
