@@ -98,6 +98,8 @@ def _filter_queue(df: pd.DataFrame, filter_name: str) -> list[str]:
         mask = df["is_flagged"].astype(bool)
     elif filter_name == "labeled":
         mask = df["status"] == "labeled"
+    elif filter_name == "auto_labeled":
+        mask = df["notes"].astype(str).str.startswith("auto:")
     else:
         mask = pd.Series(True, index=df.index)
     return df.loc[mask, "crop_path"].astype(str).tolist()
