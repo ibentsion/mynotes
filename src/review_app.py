@@ -159,6 +159,12 @@ def write_manifest_atomic(path: Path, df: pd.DataFrame) -> None:
             tmp_path.unlink()
 
 
+def _save_manifest(path: Path, df: pd.DataFrame) -> None:
+    """Write manifest and update session-state mtime to prevent stale-cache reload."""
+    write_manifest_atomic(path, df)
+    st.session_state["manifest_mtime"] = path.stat().st_mtime
+
+
 def _render_context(
     page_path: str, x: int, y: int, w: int, h: int, scale: int
 ) -> np.ndarray | None:
@@ -208,9 +214,14 @@ def main() -> None:
         st.stop()
 
     manifest_df = _load_csv(manifest_path, "manifest.csv")
-    # Session-state cache of the manifest (so edits persist across Streamlit reruns)
-    if "manifest_df" not in st.session_state:
+    # Reload session-state cache if the file was modified externally (e.g. by auto-label).
+    file_mtime = manifest_path.stat().st_mtime
+    if ("manifest_df" not in st.session_state
+            or st.session_state.get("manifest_mtime", 0) < file_mtime):
         st.session_state["manifest_df"] = manifest_df
+        st.session_state["manifest_mtime"] = file_mtime
+        st.session_state.pop("_undo_stack", None)
+        st.session_state.pop("_redo_stack", None)
     manifest_df = st.session_state["manifest_df"]
 
     if review_queue_path.exists():
@@ -279,7 +290,7 @@ def main() -> None:
     st.sidebar.divider()
     if st.sidebar.button("Sync to ClearML", width="stretch"):
         # Persist any pending edits first
-        write_manifest_atomic(manifest_path, manifest_df)
+        _save_manifest(manifest_path, manifest_df)
         try:
             synced = sync_review_to_clearml(manifest_path)
             st.sidebar.success(f"Synced — {synced}")
@@ -338,7 +349,7 @@ def main() -> None:
                 manifest_df, current_path, label=submitted, status="labeled"
             )
             st.session_state["manifest_df"] = manifest_df
-            write_manifest_atomic(manifest_path, manifest_df)
+            _save_manifest(manifest_path, manifest_df)
             next_idx = min(len(filtered_paths) - 1, st.session_state["index"] + 1)
             st.session_state["index"] = next_idx
             save_state(state_path, ReviewState(st.session_state["filter"], next_idx))
@@ -375,7 +386,7 @@ def main() -> None:
             st.session_state[label_key] = _prev
             manifest_df = update_manifest_row(manifest_df, current_path, label=_prev)
             st.session_state["manifest_df"] = manifest_df
-            write_manifest_atomic(manifest_path, manifest_df)
+            _save_manifest(manifest_path, manifest_df)
             st.rerun()
         if _fcol.button("▶", disabled=_pos >= len(_hist) - 1,
                         key=f"lhist_fwd_{current_path}", help="Redo label"):
@@ -385,7 +396,7 @@ def main() -> None:
             st.session_state[label_key] = _next
             manifest_df = update_manifest_row(manifest_df, current_path, label=_next)
             st.session_state["manifest_df"] = manifest_df
-            write_manifest_atomic(manifest_path, manifest_df)
+            _save_manifest(manifest_path, manifest_df)
             st.rerun()
 
         if model_bundle is not None and current_status == "unlabeled":
@@ -414,7 +425,7 @@ def main() -> None:
                 return
             updated = update_manifest_row(manifest_df, current_path, status=new)
             st.session_state["manifest_df"] = updated
-            write_manifest_atomic(manifest_path, updated)
+            _save_manifest(manifest_path, updated)
             st.toast("Saved", icon="✅")
             st.rerun()
 
@@ -437,7 +448,7 @@ def main() -> None:
         if new_notes != current_notes:
             manifest_df = update_manifest_row(manifest_df, current_path, notes=new_notes)
             st.session_state["manifest_df"] = manifest_df
-            write_manifest_atomic(manifest_path, manifest_df)
+            _save_manifest(manifest_path, manifest_df)
             st.toast("Saved", icon="✅")
 
         with st.expander("Crop metadata"):
