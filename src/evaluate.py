@@ -2,7 +2,6 @@
 write eval_report.csv, log to ClearML."""
 
 import argparse
-import math
 import sys
 from pathlib import Path
 
@@ -17,9 +16,8 @@ from src.ctc_utils import (
     CRNN,
     build_half_page_units,
     cer,
-    greedy_decode,
     load_charset,
-    load_crop,
+    predict_single,
     resolve_device,
     split_units,
 )
@@ -94,18 +92,7 @@ def main() -> int:
             row = val_df.iloc[idx]
             crop_path = str(row["crop_path"])
             target_text = str(row["label"])
-            image = load_crop(crop_path).unsqueeze(0).to(device)  # (1, 1, 64, W)
-            # Pad width to multiple of 4 (matches collate Pitfall 1 fix)
-            w = image.size(3)
-            padded_w = math.ceil(w / 4) * 4
-            if padded_w != w:
-                pad = torch.zeros(1, 1, image.size(2), padded_w, device=device)
-                pad[:, :, :, :w] = image
-                image = pad
-            logits = model(image)  # (T, 1, C)
-            log_probs = logits.log_softmax(2)
-            pred_indices = greedy_decode(log_probs[:, 0, :])
-            pred_text = "".join(charset[i - 1] for i in pred_indices)
+            pred_text = predict_single(model, charset, device, crop_path)
 
             image_paths.append(crop_path)
             targets.append(target_text)

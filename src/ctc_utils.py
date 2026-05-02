@@ -227,3 +227,23 @@ class CRNN(nn.Module):
 def resolve_device() -> torch.device:
     """torch.device('cuda' if torch.cuda.is_available() else 'cpu') per TRAN-05."""
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def predict_single(
+    model: CRNN,
+    charset: list[str],
+    device: torch.device,
+    crop_path: str,
+) -> str:
+    """Greedy-decode a single crop. Caller manages model.eval() + torch.no_grad()."""
+    image = load_crop(crop_path).unsqueeze(0).to(device)  # (1, 1, 64, W)
+    w = image.size(3)
+    padded_w = math.ceil(w / 4) * 4
+    if padded_w != w:
+        pad = torch.zeros(1, 1, image.size(2), padded_w, device=device)
+        pad[:, :, :, :w] = image
+        image = pad
+    logits = model(image)  # (T, 1, C)
+    log_probs = logits.log_softmax(2)
+    pred_indices = greedy_decode(log_probs[:, 0, :])
+    return "".join(charset[i - 1] for i in pred_indices)
