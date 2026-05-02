@@ -71,9 +71,8 @@ def _collect_unlabeled(df: pd.DataFrame, limit: int | None) -> list:
     return indices[:limit] if limit is not None else indices
 
 
-def _resolve_crop(crop_path: str, manifest_dir: Path) -> Path:
-    p = Path(crop_path)
-    return p if p.is_absolute() else manifest_dir / p
+def _resolve_crop(crop_path: str) -> Path:
+    return Path(crop_path)
 
 
 def main() -> int:
@@ -110,12 +109,11 @@ def _run() -> int:
         return 2
 
     client = OpenAI()
-    manifest_dir = args.manifest.parent
     success = 0
     failures = 0
 
     for i, idx in enumerate(indices, start=1):
-        crop_path = _resolve_crop(str(df.at[idx, "crop_path"]), manifest_dir)
+        crop_path = _resolve_crop(str(df.at[idx, "crop_path"]))
         print(f"[{i}/{total}] labeling {crop_path}", flush=True)
         try:
             text = _label_one(client, args.model, crop_path)
