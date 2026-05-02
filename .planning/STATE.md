@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 Phase: 03
 Plan: Not started
 Status: Ready to execute
-Last activity: 2026-04-30
+Last activity: 2026-05-02 - Completed quick task 260502-e75: Add auto-label CLI that sends unlabeled crops to OpenAI vision API and writes labels back to manifest.csv
 
 Progress: [█░░░░░░░░░] 5%
 
@@ -93,6 +93,12 @@ None yet.
 ### Blockers/Concerns
 
 None yet.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260502-e75 | Add auto-label CLI that sends unlabeled crops to OpenAI vision API and writes labels back to manifest.csv | 2026-05-02 | d457d7b | [260502-e75-add-auto-label-cli-that-sends-unlabeled-](./quick/260502-e75-add-auto-label-cli-that-sends-unlabeled-/) |
 
 ## Session Continuity
 
