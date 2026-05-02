@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 DEFAULT_FILTER = "unlabeled"
-VALID_FILTERS: tuple[str, ...] = ("unlabeled", "flagged", "labeled", "all")
+VALID_FILTERS: tuple[str, ...] = ("unlabeled", "flagged", "labeled", "auto_labeled", "all")
 
 
 @dataclass
