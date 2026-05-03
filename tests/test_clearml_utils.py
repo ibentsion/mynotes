@@ -6,6 +6,7 @@ import pandas as pd
 from src.clearml_utils import (
     init_task,
     maybe_create_dataset,
+    remap_dataset_paths,
     report_manifest_stats,
     upload_file_artifact,
 )
@@ -60,3 +61,54 @@ def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls):
     assert mock_ds.add_files.call_args_list == [call("/tmp/a"), call("/tmp/b")]
     mock_ds.upload.assert_called_once_with()
     mock_ds.finalize.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# remap_dataset_paths tests
+# ---------------------------------------------------------------------------
+
+
+def _make_remap_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "crop_path": [
+                "/original/machine/crops/img_001.png",
+                "/original/machine/crops/img_002.png",
+            ],
+            "page_path": [
+                "/original/machine/pages/p1.png",
+                "/original/machine/pages/p2.png",
+            ],
+        }
+    )
+
+
+@patch("src.clearml_utils.Dataset")
+def test_remap_dataset_paths_replaces_crop_and_page_paths(mock_dataset_cls):
+    mock_dataset_cls.get.return_value.get_local_copy.return_value = "/cache/root"
+    df = _make_remap_df()
+    result = remap_dataset_paths(df, "abc123")
+    assert result["crop_path"].tolist() == [
+        "/cache/root/crops/img_001.png",
+        "/cache/root/crops/img_002.png",
+    ]
+    assert result["page_path"].tolist() == [
+        "/cache/root/pages/p1.png",
+        "/cache/root/pages/p2.png",
+    ]
+
+
+@patch("src.clearml_utils.Dataset")
+def test_remap_dataset_paths_does_not_modify_original_df(mock_dataset_cls):
+    mock_dataset_cls.get.return_value.get_local_copy.return_value = "/cache/root"
+    df = _make_remap_df()
+    original_crop = df["crop_path"].tolist()
+    remap_dataset_paths(df, "abc123")
+    assert df["crop_path"].tolist() == original_crop
+
+
+@patch("src.clearml_utils.Dataset")
+def test_remap_dataset_paths_calls_dataset_get_with_correct_id(mock_dataset_cls):
+    mock_dataset_cls.get.return_value.get_local_copy.return_value = "/cache/root"
+    remap_dataset_paths(_make_remap_df(), "abc123")
+    mock_dataset_cls.get.assert_called_once_with(dataset_id="abc123")
