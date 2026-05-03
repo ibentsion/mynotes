@@ -90,6 +90,10 @@ Recent decisions affecting current work:
 
 None yet.
 
+### Roadmap Evolution
+
+- Phase 4 added: Data augmentation and GPU training via ClearML agent
+
 ### Blockers/Concerns
 
 None yet.
