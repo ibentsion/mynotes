@@ -394,3 +394,182 @@ def test_missing_manifest_exits_2(tmp_path):
     )
     assert result.returncode == 2
     assert "--manifest does not exist" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Test 9: Augmentation CLI parser defaults
+# ---------------------------------------------------------------------------
+
+
+def test_build_parser_aug_defaults():
+    from src.train_ctc import _build_parser
+
+    parser = _build_parser()
+    args = parser.parse_args(["--manifest", "m.csv", "--output_dir", "out"])
+    assert args.aug_copies == 0
+    assert args.rotation_max == pytest.approx(7.0)
+    assert args.brightness_delta == pytest.approx(0.10)
+    assert args.noise_sigma == pytest.approx(0.02)
+
+
+# ---------------------------------------------------------------------------
+# Test 10: aug_copies=0 backward-compat (subprocess smoke test)
+# ---------------------------------------------------------------------------
+
+
+def test_aug_copies_zero_backward_compat(tmp_path):
+    page1 = tmp_path / "p1.png"
+    page2 = tmp_path / "p2.png"
+    _make_grayscale_png(page1, h=200, w=128)
+    _make_grayscale_png(page2, h=200, w=128)
+
+    labels = ["אב", "בג", "גד", "דה", "הו", "וז", "זח", "חט", "טי", "יכ", "כל", "לם"]
+    rows = []
+    for i, lab in enumerate(labels[:3]):
+        crop = tmp_path / f"p1_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[3:6]):
+        crop = tmp_path / f"p1_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, 140 + i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[6:9]):
+        crop = tmp_path / f"p2_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[9:12]):
+        crop = tmp_path / f"p2_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label=lab))
+
+    manifest = tmp_path / "manifest.csv"
+    out_dir = tmp_path / "out"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    result = _run_cli([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "1",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "0",
+    ])
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert (out_dir / "checkpoint.pt").exists()
+
+
+# ---------------------------------------------------------------------------
+# Test 11: aug_copies>0 prints effective dataset size (Pitfall 4 guard)
+# ---------------------------------------------------------------------------
+
+
+def test_aug_copies_nonzero_prints_effective_size(tmp_path):
+    page1 = tmp_path / "p1.png"
+    page2 = tmp_path / "p2.png"
+    _make_grayscale_png(page1, h=200, w=128)
+    _make_grayscale_png(page2, h=200, w=128)
+
+    labels = ["אב", "בג", "גד", "דה", "הו", "וז", "זח", "חט", "טי", "יכ", "כל", "לם"]
+    rows = []
+    for i, lab in enumerate(labels[:3]):
+        crop = tmp_path / f"p1_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[3:6]):
+        crop = tmp_path / f"p1_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, 140 + i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[6:9]):
+        crop = tmp_path / f"p2_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[9:12]):
+        crop = tmp_path / f"p2_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label=lab))
+
+    manifest = tmp_path / "manifest.csv"
+    out_dir = tmp_path / "out"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    result = _run_cli([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "1",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "2",
+    ])
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert "effective dataset size" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# Test 12: val dataset is always constructed without augment (D-04)
+# ---------------------------------------------------------------------------
+
+
+@patch("src.train_ctc.Task")
+def test_val_dataset_has_no_augment(mock_task_cls, tmp_path, monkeypatch):
+    """Verify val_ds is created with augment=None regardless of --aug_copies."""
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    page1 = tmp_path / "p1.png"
+    page2 = tmp_path / "p2.png"
+    _make_grayscale_png(page1, h=200, w=128)
+    _make_grayscale_png(page2, h=200, w=128)
+
+    rows = []
+    labels = ["אב", "בג", "גד", "דה", "הו", "וז", "זח", "חט", "טי", "יכ", "כל", "לם"]
+    for i, lab in enumerate(labels[:3]):
+        crop = tmp_path / f"p1_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[3:6]):
+        crop = tmp_path / f"p1_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, 140 + i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[6:9]):
+        crop = tmp_path / f"p2_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[9:12]):
+        crop = tmp_path / f"p2_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label=lab))
+
+    manifest = tmp_path / "manifest.csv"
+    out_dir = tmp_path / "out"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    from src import ctc_utils
+    from src.train_ctc import main
+
+    captured_calls: list[dict] = []
+    original_crop_dataset = ctc_utils.CropDataset
+
+    class SpyCropDataset(original_crop_dataset):
+        def __init__(self, df, charset, augment=None, aug_copies=0):
+            captured_calls.append({"augment": augment, "aug_copies": aug_copies})
+            super().__init__(df, charset, augment=augment, aug_copies=aug_copies)
+
+    with patch("src.train_ctc.CropDataset", SpyCropDataset):
+        argv_backup = sys.argv[:]
+        sys.argv = [
+            "src.train_ctc",
+            "--manifest", str(manifest),
+            "--output_dir", str(out_dir),
+            "--epochs", "1",
+            "--batch_size", "2",
+            "--min_labeled", "12",
+            "--aug_copies", "2",
+        ]
+        try:
+            rc = main()
+        finally:
+            sys.argv = argv_backup
+
+    assert rc == 0
+    # Exactly 2 CropDataset calls: train_ds and val_ds
+    assert len(captured_calls) == 2
+    # val_ds is the second call — must have augment=None (D-04)
+    assert captured_calls[1]["augment"] is None
