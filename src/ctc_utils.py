@@ -7,6 +7,7 @@ import cv2
 import pandas as pd
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 # ---------------------------------------------------------------------------
 # Charset
@@ -136,6 +137,98 @@ def crnn_collate(
     input_lengths = torch.tensor([padded_w // 4] * len(images), dtype=torch.long)
     target_lengths = torch.tensor([len(lbl) for lbl in labels], dtype=torch.long)
     return padded, label_tensor, input_lengths, target_lengths
+
+
+# ---------------------------------------------------------------------------
+# Augmentation
+# ---------------------------------------------------------------------------
+
+
+class AugmentTransform:
+    """Online augmentation for training crops. Per D-01/D-02: rotation, brightness, noise.
+
+    No horizontal flip (reverses RTL Hebrew text — D-01).
+    padding_mode="border" avoids blank padding contamination (RESEARCH.md Pitfall 5).
+    """
+
+    def __init__(
+        self,
+        rotation_max: float = 7.0,
+        brightness_delta: float = 0.10,
+        noise_sigma: float = 0.02,
+    ) -> None:
+        self.rotation_max = rotation_max
+        self.brightness_delta = brightness_delta
+        self.noise_sigma = noise_sigma
+
+    def __call__(self, tensor: torch.Tensor, seed: int) -> torch.Tensor:
+        """Apply transforms to a (1, H, W) float32 tensor. Seeded for reproducibility."""
+        rng = torch.Generator()
+        rng.manual_seed(seed)
+
+        # 1. Rotation via affine_grid (pure PyTorch — no torchvision)
+        # torch.rand gives [0,1]; scale to [-max, max]
+        angle_deg = float(
+            torch.rand(1, generator=rng) * 2 * self.rotation_max - self.rotation_max
+        )
+        angle_rad = angle_deg * math.pi / 180.0
+        cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
+        theta = torch.tensor(
+            [[cos_a, -sin_a, 0.0], [sin_a, cos_a, 0.0]], dtype=torch.float32
+        ).unsqueeze(0)
+        grid = F.affine_grid(theta, tensor.unsqueeze(0).shape, align_corners=False)
+        tensor = F.grid_sample(
+            tensor.unsqueeze(0), grid, align_corners=False, padding_mode="border"
+        ).squeeze(0)
+
+        # 2. Brightness jitter (multiplicative) — per D-02 conservative
+        factor = float(
+            1.0 + (torch.rand(1, generator=rng) * 2 * self.brightness_delta - self.brightness_delta)
+        )
+        tensor = torch.clamp(tensor * factor, 0.0, 1.0)
+
+        # 3. Gaussian noise
+        noise = torch.randn(tensor.shape, generator=rng) * self.noise_sigma
+        tensor = torch.clamp(tensor + noise, 0.0, 1.0)
+
+        return tensor
+
+
+# ---------------------------------------------------------------------------
+# Dataset
+# ---------------------------------------------------------------------------
+
+
+from torch.utils.data import Dataset  # noqa: E402
+
+
+class CropDataset(Dataset):
+    """D-03/D-04: Online augmentation for train split only. Val receives clean crops."""
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        charset: list[str],
+        augment: AugmentTransform | None = None,
+        aug_copies: int = 0,
+    ) -> None:
+        self._df = df
+        self._charset = charset
+        self._augment = augment
+        self._copies = aug_copies if augment is not None else 0
+
+    def __len__(self) -> int:
+        return len(self._df) * (1 + self._copies)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, list[int]]:
+        real_idx = index % len(self._df)
+        copy_idx = index // len(self._df)
+        row = self._df.iloc[real_idx]
+        image = load_crop(str(row["crop_path"]))
+        if copy_idx > 0 and self._augment is not None:
+            image = self._augment(image, seed=index)  # deterministic per logical index
+        label_ids = encode_label(str(row["label"]), self._charset)
+        return image, label_ids
 
 
 # ---------------------------------------------------------------------------
