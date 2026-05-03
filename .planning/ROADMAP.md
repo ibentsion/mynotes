@@ -73,3 +73,15 @@ Phases execute in numeric order: 1 → 2 → 3
 | 1. Data Pipeline | 4/4 | Complete   | 2026-04-21 |
 | 2. Review & Annotation | 0/? | Not started | - |
 | 3. Training & Evaluation | 2/3 | In Progress|  |
+
+### Phase 4: Data augmentation and GPU training via ClearML agent
+
+**Goal:** Online data augmentation for training crops (rotation, brightness, noise) and
+ClearML agent setup for GPU training on Windows RTX 5060 via WSL2.
+**Requirements**: TBD
+**Depends on:** Phase 3
+**Plans:** 2 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Add AugmentTransform + extend CropDataset in ctc_utils.py; wire --aug_copies, --rotation_max, --brightness_delta, --noise_sigma CLI flags in train_ctc.py
+- [ ] 04-02-PLAN.md — Add --enqueue, --queue_name, --dataset_id flags to train_ctc.py; add remap_dataset_paths to clearml_utils.py; write docs/clearml-agent-setup.md for WSL2 GPU agent
