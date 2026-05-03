@@ -9,7 +9,7 @@ import torch
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
 from torch.utils.data import DataLoader
 
-from src.clearml_utils import init_task, upload_file_artifact
+from src.clearml_utils import init_task, remap_dataset_paths, upload_file_artifact
 from src.ctc_utils import (
     CRNN,
     AugmentTransform,
@@ -48,6 +48,12 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Max brightness multiplicative delta for augmentation (D-02)")
     p.add_argument("--noise_sigma", type=float, default=0.02,
                    help="Gaussian noise sigma for augmentation (D-02)")
+    p.add_argument("--enqueue", action="store_true", default=False,
+                   help="Enqueue task to ClearML queue instead of running locally (D-07)")
+    p.add_argument("--queue_name", type=str, default="gpu",
+                   help="ClearML queue name when --enqueue is set (D-07)")
+    p.add_argument("--dataset_id", type=str, default=None,
+                   help="ClearML dataset ID; downloads and remaps paths in-memory (D-09)")
     return p
 
 
@@ -55,7 +61,8 @@ def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
 
-    task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=["phase-3"])
+    tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
+    task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
 
     if not args.manifest.exists():
         print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
@@ -75,10 +82,17 @@ def main() -> int:
         print("ERROR: at least one labeled row has an empty label.", file=sys.stderr)
         return 4
 
+    if args.dataset_id is not None:
+        labeled = remap_dataset_paths(labeled, args.dataset_id)
+
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # TRAN-07: connect ALL hyperparameters
+    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely (RESEARCH.md Pattern 3)
     task.connect(vars(args), name="hyperparams")
+
+    if args.enqueue:
+        task.execute_remotely(queue_name=args.queue_name)
+        # local process exits here; agent re-runs from top and skips this call
 
     # TRAN-02: charset built from labeled labels (NFC inside build_charset)
     charset = build_charset(labeled["label"].tolist())

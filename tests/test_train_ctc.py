@@ -5,7 +5,7 @@ import subprocess
 import sys
 import unicodedata
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
@@ -573,3 +573,188 @@ def test_val_dataset_has_no_augment(mock_task_cls, tmp_path, monkeypatch):
     assert len(captured_calls) == 2
     # val_ds is the second call — must have augment=None (D-04)
     assert captured_calls[1]["augment"] is None
+
+
+# ---------------------------------------------------------------------------
+# Test 13: Parser has --enqueue, --queue_name, --dataset_id flags (Plan 02)
+# ---------------------------------------------------------------------------
+
+
+def test_build_parser_has_enqueue_and_dataset_id_flags():
+    from src.train_ctc import _build_parser
+
+    parser = _build_parser()
+    args = parser.parse_args(["--manifest", "m.csv", "--output_dir", "out"])
+    assert args.enqueue is False
+    assert args.queue_name == "gpu"
+    assert args.dataset_id is None
+
+
+# ---------------------------------------------------------------------------
+# Test 14: --enqueue calls execute_remotely AFTER connect (ordering constraint)
+# ---------------------------------------------------------------------------
+
+
+@patch("src.train_ctc.init_task")
+def test_enqueue_calls_execute_remotely_after_connect(mock_init_task, tmp_path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    page_path = tmp_path / "page.png"
+    _make_grayscale_png(page_path)
+    rows = [_row(str(tmp_path / f"c{i}.png"), str(page_path), i + 1, 10, 8) for i in range(3)]
+    for r in rows:
+        _make_grayscale_png(Path(r["crop_path"]), h=8, w=128)
+    manifest = tmp_path / "manifest.csv"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    call_order: list[str] = []
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task.connect.side_effect = lambda *a, **kw: call_order.append("connect")
+    mock_task.execute_remotely.side_effect = lambda **kw: call_order.append("execute_remotely")
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest", str(manifest),
+        "--output_dir", str(tmp_path / "out"),
+        "--min_labeled", "1",
+        "--enqueue",
+    ]
+    try:
+        main()
+    finally:
+        sys.argv = argv_backup
+
+    assert "connect" in call_order
+    assert "execute_remotely" in call_order
+    assert call_order.index("connect") < call_order.index("execute_remotely")
+
+
+# ---------------------------------------------------------------------------
+# Test 15: --enqueue causes task to be created with "gpu" tag (D-08)
+# ---------------------------------------------------------------------------
+
+
+@patch("src.train_ctc.init_task")
+def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    page_path = tmp_path / "page.png"
+    _make_grayscale_png(page_path)
+    rows = [_row(str(tmp_path / f"c{i}.png"), str(page_path), i + 1, 10, 8) for i in range(3)]
+    for r in rows:
+        _make_grayscale_png(Path(r["crop_path"]), h=8, w=128)
+    manifest = tmp_path / "manifest.csv"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest", str(manifest),
+        "--output_dir", str(tmp_path / "out"),
+        "--min_labeled", "1",
+        "--enqueue",
+    ]
+    try:
+        main()
+    finally:
+        sys.argv = argv_backup
+
+    mock_init_task.assert_called_once()
+    _, kwargs = mock_init_task.call_args
+    tags = kwargs.get("tags", mock_init_task.call_args[0][2] if len(mock_init_task.call_args[0]) > 2 else [])
+    assert "gpu" in tags
+
+
+# ---------------------------------------------------------------------------
+# Test 16: --dataset_id calls remap_dataset_paths with correct id (D-09)
+# ---------------------------------------------------------------------------
+
+
+@patch("src.train_ctc.Task")
+@patch("src.train_ctc.remap_dataset_paths")
+def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    page_path = tmp_path / "page.png"
+    _make_grayscale_png(page_path)
+    rows = [_row(str(tmp_path / f"c{i}.png"), str(page_path), i + 1, 10, 8) for i in range(3)]
+    for r in rows:
+        _make_grayscale_png(Path(r["crop_path"]), h=8, w=128)
+    manifest = tmp_path / "manifest.csv"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    # remap returns the original df unchanged so training can continue; force exit via split
+    mock_remap.side_effect = lambda df, dataset_id: df
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest", str(manifest),
+        "--output_dir", str(tmp_path / "out"),
+        "--min_labeled", "1",
+        "--dataset_id", "my-dataset-id",
+    ]
+    with patch("src.train_ctc.split_units", return_value=([], [])):
+        try:
+            main()
+        finally:
+            sys.argv = argv_backup
+
+    mock_remap.assert_called_once()
+    _, call_kwargs = mock_remap.call_args
+    # dataset_id may be positional
+    called_id = call_kwargs.get("dataset_id", mock_remap.call_args[0][1] if len(mock_remap.call_args[0]) > 1 else None)
+    assert called_id == "my-dataset-id"
+
+
+# ---------------------------------------------------------------------------
+# Test 17: no --enqueue, no --dataset_id — backward-compat returns 0 + checkpoint
+# ---------------------------------------------------------------------------
+
+
+def test_no_enqueue_no_dataset_id_backward_compat(tmp_path):
+    page1 = tmp_path / "p1.png"
+    page2 = tmp_path / "p2.png"
+    _make_grayscale_png(page1, h=200, w=128)
+    _make_grayscale_png(page2, h=200, w=128)
+
+    labels = ["אב", "בג", "גד", "דה", "הו", "וז", "זח", "חט", "טי", "יכ", "כל", "לם"]
+    rows = []
+    for i, lab in enumerate(labels[:3]):
+        crop = tmp_path / f"p1_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[3:6]):
+        crop = tmp_path / f"p1_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, 140 + i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[6:9]):
+        crop = tmp_path / f"p2_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[9:12]):
+        crop = tmp_path / f"p2_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label=lab))
+
+    manifest = tmp_path / "manifest.csv"
+    out_dir = tmp_path / "out"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+
+    result = _run_cli([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "1",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+    ])
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert (out_dir / "checkpoint.pt").exists()
