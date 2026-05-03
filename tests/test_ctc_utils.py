@@ -8,6 +8,8 @@ import torch
 
 from src.ctc_utils import (
     CRNN,
+    AugmentTransform,
+    CropDataset,
     build_charset,
     build_half_page_units,
     cer,
@@ -269,3 +271,106 @@ def test_crnn_forward_returns_raw_logits_no_softmax():
 def test_resolve_device_returns_cpu_on_cpu_only_host():
     device = resolve_device()
     assert device == torch.device("cpu")
+
+
+# ---------------------------------------------------------------------------
+# AugmentTransform
+# ---------------------------------------------------------------------------
+
+
+def test_augment_transform_output_shape(tmp_path: Path):
+    img_path = _write_gray_png(tmp_path / "crop.png", 64, 128)
+    tensor = load_crop(str(img_path))
+    out = AugmentTransform()(tensor, seed=0)
+    assert out.shape == tensor.shape
+
+
+def test_augment_transform_output_dtype(tmp_path: Path):
+    img_path = _write_gray_png(tmp_path / "crop.png", 64, 64)
+    tensor = load_crop(str(img_path))
+    out = AugmentTransform()(tensor, seed=0)
+    assert out.dtype == torch.float32
+    assert out.min().item() >= 0.0
+    assert out.max().item() <= 1.0
+
+
+def test_augment_transform_different_seeds_differ(tmp_path: Path):
+    img_path = _write_gray_png(tmp_path / "crop.png", 64, 128, value=128)
+    tensor = load_crop(str(img_path))
+    out0 = AugmentTransform()(tensor, seed=0)
+    out99 = AugmentTransform()(tensor, seed=99)
+    assert not torch.equal(out0, out99)
+
+
+def test_augment_transform_same_seed_is_deterministic(tmp_path: Path):
+    img_path = _write_gray_png(tmp_path / "crop.png", 64, 128, value=128)
+    tensor = load_crop(str(img_path))
+    aug = AugmentTransform()
+    out1 = aug(tensor, seed=42)
+    out2 = aug(tensor, seed=42)
+    assert torch.equal(out1, out2)
+
+
+def test_augment_transform_no_horizontal_flip(tmp_path: Path):
+    # Build asymmetric tensor: left half all-ones, right half all-zeros
+    tensor = torch.zeros(1, 64, 32)
+    tensor[:, :, :16] = 1.0
+    out = AugmentTransform()(tensor, seed=0)
+    # If there were a horizontal flip, the output would equal torch.flip(tensor, [2])
+    # With ±7° rotation only, the output should differ from a flipped input
+    flipped = torch.flip(tensor, [2])
+    assert not torch.equal(out, flipped)
+
+
+# ---------------------------------------------------------------------------
+# CropDataset (augmentation-aware)
+# ---------------------------------------------------------------------------
+
+
+def _make_aug_df(tmp_path: Path, n: int = 3) -> pd.DataFrame:
+    rows = []
+    page_path = _write_gray_png(tmp_path / "page.png", 100, 200)
+    for i in range(n):
+        crop_path = _write_gray_png(tmp_path / f"crop_{i}.png", 64, 128)
+        rows.append(_make_df_row(str(crop_path), page_num=1, y=10 * i, h=8))
+        rows[-1]["crop_path"] = str(crop_path)
+    return pd.DataFrame(rows)
+
+
+def test_crop_dataset_aug_copies_zero_is_plain_length(tmp_path: Path):
+    df = _make_aug_df(tmp_path, n=3)
+    charset = ["א"]
+    ds = CropDataset(df, charset, augment=None, aug_copies=0)
+    assert len(ds) == 3
+
+
+def test_crop_dataset_aug_copies_2_triples_length(tmp_path: Path):
+    df = _make_aug_df(tmp_path, n=3)
+    charset = ["א"]
+    ds = CropDataset(df, charset, augment=AugmentTransform(), aug_copies=2)
+    assert len(ds) == 9  # 3 * (1 + 2)
+
+
+def test_crop_dataset_first_copy_is_clean(tmp_path: Path):
+    df = _make_aug_df(tmp_path, n=3)
+    charset = ["א"]
+    ds = CropDataset(df, charset, augment=AugmentTransform(), aug_copies=2)
+    image, _ = ds[0]
+    expected = load_crop(str(df.iloc[0]["crop_path"]))
+    assert torch.equal(image, expected)
+
+
+def test_crop_dataset_augmented_copy_differs(tmp_path: Path):
+    df = _make_aug_df(tmp_path, n=3)
+    charset = ["א"]
+    ds = CropDataset(df, charset, augment=AugmentTransform(), aug_copies=2)
+    clean, _ = ds[0]
+    augmented, _ = ds[3]  # index 3 = first real_idx=0, copy_idx=1
+    assert not torch.equal(clean, augmented)
+
+
+def test_crop_dataset_augment_none_ignores_aug_copies(tmp_path: Path):
+    df = _make_aug_df(tmp_path, n=4)
+    charset = ["א"]
+    ds = CropDataset(df, charset, augment=None, aug_copies=5)
+    assert len(ds) == 4  # copies ignored when augment is None
