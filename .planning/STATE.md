@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-05-03T15:33:08.369Z"
-last_activity: "2026-05-03 - Completed quick task 260503-pht: add debug samples to training so i can see how training affects prediction. select specific crops (~5) and track their prediction over epochs."
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-05-03T20:12:04.542Z"
+last_activity: 2026-05-03
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 10
-  completed_plans: 10
+  total_plans: 12
+  completed_plans: 11
   percent: 5
 ---
 
@@ -21,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-21)
 
 **Core value:** A reviewable, labeled dataset of personal Hebrew handwriting that a baseline OCR model can train on
-**Current focus:** Phase 03 — training-evaluation
+**Current focus:** Phase 04 — data-augmentation-and-gpu-training-via-clearml-agent
 
 ## Current Position
 
-Phase: 03
-Plan: Not started
+Phase: 04 (data-augmentation-and-gpu-training-via-clearml-agent) — EXECUTING
+Plan: 2 of 2
 Status: Ready to execute
-Last activity: 2026-05-03 - Completed quick task 260503-pht: add debug samples to training so i can see how training affects prediction. select specific crops (~5) and track their prediction over epochs.
+Last activity: 2026-05-03
 
 Progress: [█░░░░░░░░░] 5%
 
@@ -58,6 +58,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 02-review-annotation P02 | 4 | 2 tasks | 2 files |
 | Phase 03 P01 | 6 | 2 tasks | 4 files |
 | Phase 03-training-evaluation P02 | 7 | 2 tasks | 2 files |
+| Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P01 | 17 | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -85,6 +86,9 @@ Recent decisions affecting current work:
 - [Phase 03-training-evaluation]: In-process spy for leakage test: subprocess can't see in-process patches; test uses sys.argv injection + @patch('src.train_ctc.Task')
 - [Phase 03-training-evaluation]: noqa: F401 on Task import in train_ctc.py: unused but required for @patch('src.train_ctc.Task') test patchability (established pattern)
 - [Phase 03-training-evaluation]: CropDataset.__getitem__ parameter named 'index' not 'idx' for ty LSP compliance with parent Dataset class
+- [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: torch.rand(1, generator=rng) used for seeded uniform sampling — torch.empty does not accept generator kwarg in torch 2.11
+- [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: CropDataset moved from train_ctc.py to ctc_utils.py; encode_label and load_crop removed from train_ctc imports
+- [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: AugmentTransform: F.affine_grid + F.grid_sample with padding_mode=border prevents blank contamination on rotation (RESEARCH Pitfall 5)
 
 ### Pending Todos
 
@@ -109,6 +113,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-03T15:33:08.364Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-data-augmentation-and-gpu-training-via-clearml-agent/04-CONTEXT.md
+Last session: 2026-05-03T20:12:04.537Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
