@@ -19,10 +19,13 @@ from src.ctc_utils import (
     encode_label,
     greedy_decode,
     load_crop,
+    predict_single,
     resolve_device,
     save_charset,
     split_units,
 )
+
+DEBUG_SAMPLES = 5
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -104,7 +107,12 @@ def main() -> int:
     device = resolve_device()  # TRAN-05
 
     train_ds = CropDataset(labeled.iloc[train_idx].reset_index(drop=True), charset)
-    val_ds = CropDataset(labeled.iloc[val_idx].reset_index(drop=True), charset)
+    val_df = labeled.iloc[val_idx].reset_index(drop=True)
+    val_ds = CropDataset(val_df, charset)
+    n_debug = min(DEBUG_SAMPLES, len(val_df))
+    debug_samples = [
+        (str(val_df.iloc[i]["crop_path"]), str(val_df.iloc[i]["label"])) for i in range(n_debug)
+    ]
     train_loader = DataLoader(
         train_ds,
         batch_size=args.batch_size,
@@ -153,9 +161,7 @@ def main() -> int:
                 images = images.to(device)
                 logits = model(images)
                 log_probs = logits.log_softmax(2)
-                val_loss_sum += ctc_loss(
-                    log_probs, labels, input_lengths, target_lengths
-                ).item()
+                val_loss_sum += ctc_loss(log_probs, labels, input_lengths, target_lengths).item()
                 val_steps += 1
                 # Per-sample CER
                 offset = 0
@@ -176,6 +182,20 @@ def main() -> int:
         logger.report_scalar(title="loss", series="train", iteration=epoch, value=train_loss)
         logger.report_scalar(title="loss", series="val", iteration=epoch, value=val_loss)
         logger.report_scalar(title="cer", series="val", iteration=epoch, value=val_cer)
+
+        with torch.no_grad():
+            lines = [f"=== debug samples epoch={epoch} ==="]
+            for i, (crop_path, gt) in enumerate(debug_samples):
+                pred = predict_single(model, charset, device, crop_path)
+                lines.append(f"[{i}] {crop_path} | gt={gt} | pred={pred}")
+            text_block = "\n".join(lines)
+        logger.report_text(
+            title="debug_samples",
+            series="val",
+            iteration=epoch,
+            print_console=False,
+            msg=text_block,
+        )
 
         if val_cer < best_val_cer:
             best_val_cer = val_cer
