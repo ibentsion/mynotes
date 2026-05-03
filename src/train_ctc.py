@@ -87,7 +87,7 @@ def main() -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely (RESEARCH.md Pattern 3)
+    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
     task.connect(vars(args), name="hyperparams")
 
     if args.enqueue:
