@@ -84,4 +84,4 @@ ClearML agent setup for GPU training on Windows RTX 5060 via WSL2.
 
 Plans:
 - [x] 04-01-PLAN.md — Add AugmentTransform + extend CropDataset in ctc_utils.py; wire --aug_copies, --rotation_max, --brightness_delta, --noise_sigma CLI flags in train_ctc.py
-- [ ] 04-02-PLAN.md — Add --enqueue, --queue_name, --dataset_id flags to train_ctc.py; add remap_dataset_paths to clearml_utils.py; write docs/clearml-agent-setup.md for WSL2 GPU agent
+- [x] 04-02-PLAN.md — Add --enqueue, --queue_name, --dataset_id flags to train_ctc.py; add remap_dataset_paths to clearml_utils.py; write docs/clearml-agent-setup.md for WSL2 GPU agent

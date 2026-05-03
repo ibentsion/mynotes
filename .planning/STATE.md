@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: executing
-stopped_at: Completed 04-01-PLAN.md
-last_updated: "2026-05-03T20:12:04.542Z"
+status: verifying
+stopped_at: Completed 04-02-PLAN.md
+last_updated: "2026-05-03T23:25:52.079Z"
 last_activity: 2026-05-03
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 5
 ---
 
@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 Phase: 04 (data-augmentation-and-gpu-training-via-clearml-agent) — EXECUTING
 Plan: 2 of 2
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-05-03
 
 Progress: [█░░░░░░░░░] 5%
@@ -59,6 +59,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 03 P01 | 6 | 2 tasks | 4 files |
 | Phase 03-training-evaluation P02 | 7 | 2 tasks | 2 files |
 | Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P01 | 17 | 2 tasks | 4 files |
+| Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P02 | 35 | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -89,6 +90,8 @@ Recent decisions affecting current work:
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: torch.rand(1, generator=rng) used for seeded uniform sampling — torch.empty does not accept generator kwarg in torch 2.11
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: CropDataset moved from train_ctc.py to ctc_utils.py; encode_label and load_crop removed from train_ctc imports
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: AugmentTransform: F.affine_grid + F.grid_sample with padding_mode=border prevents blank contamination on rotation (RESEARCH Pitfall 5)
+- [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: patch src.train_ctc.init_task for ordering tests (not src.train_ctc.Task): Task.init goes through clearml_utils, patching init_task directly controls returned mock
+- [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: remap_dataset_paths called in-memory before task.connect(): ensures remapped paths in ClearML hyperparams; manifest.csv never modified (D-10)
 
 ### Pending Todos
 
@@ -113,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-03T20:12:04.537Z
-Stopped at: Completed 04-01-PLAN.md
+Last session: 2026-05-03T23:25:52.074Z
+Stopped at: Completed 04-02-PLAN.md
 Resume file: None
