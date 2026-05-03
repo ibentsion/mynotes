@@ -7,18 +7,18 @@ from pathlib import Path
 import pandas as pd
 import torch
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
 from src.clearml_utils import init_task, upload_file_artifact
 from src.ctc_utils import (
     CRNN,
+    AugmentTransform,
+    CropDataset,
     build_charset,
     build_half_page_units,
     cer,
     crnn_collate,
-    encode_label,
     greedy_decode,
-    load_crop,
     predict_single,
     resolve_device,
     save_charset,
@@ -40,22 +40,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--val_frac", type=float, default=0.2)
     p.add_argument("--min_labeled", type=int, default=100)
     p.add_argument("--num_workers", type=int, default=0)
+    p.add_argument("--aug_copies", type=int, default=0,
+                   help="Augmented copies per original crop (0 = disabled, per D-05)")
+    p.add_argument("--rotation_max", type=float, default=7.0,
+                   help="Max rotation in degrees for augmentation (D-02)")
+    p.add_argument("--brightness_delta", type=float, default=0.10,
+                   help="Max brightness multiplicative delta for augmentation (D-02)")
+    p.add_argument("--noise_sigma", type=float, default=0.02,
+                   help="Gaussian noise sigma for augmentation (D-02)")
     return p
-
-
-class CropDataset(Dataset):
-    def __init__(self, df: pd.DataFrame, charset: list[str]) -> None:
-        self._df = df
-        self._charset = charset
-
-    def __len__(self) -> int:
-        return len(self._df)
-
-    def __getitem__(self, index: int) -> tuple[torch.Tensor, list[int]]:
-        row = self._df.iloc[index]
-        image = load_crop(str(row["crop_path"]))
-        label_ids = encode_label(str(row["label"]), self._charset)
-        return image, label_ids
 
 
 def main() -> int:
@@ -106,9 +99,29 @@ def main() -> int:
 
     device = resolve_device()  # TRAN-05
 
-    train_ds = CropDataset(labeled.iloc[train_idx].reset_index(drop=True), charset)
+    augment: AugmentTransform | None = None
+    if args.aug_copies > 0:
+        augment = AugmentTransform(
+            rotation_max=args.rotation_max,
+            brightness_delta=args.brightness_delta,
+            noise_sigma=args.noise_sigma,
+        )
+        effective_n = len(train_idx) * (1 + args.aug_copies)
+        print(
+            f"augmentation: aug_copies={args.aug_copies}, "
+            f"effective dataset size: {effective_n} "
+            f"(was {len(train_idx)})"
+        )
+        task.connect({"effective_train_size": effective_n}, name="hyperparams")
+
+    train_ds = CropDataset(
+        labeled.iloc[train_idx].reset_index(drop=True),
+        charset,
+        augment=augment,        # None when aug_copies=0 (D-05)
+        aug_copies=args.aug_copies,
+    )
     val_df = labeled.iloc[val_idx].reset_index(drop=True)
-    val_ds = CropDataset(val_df, charset)
+    val_ds = CropDataset(val_df, charset)  # no augment — D-04 val always clean
     n_debug = min(DEBUG_SAMPLES, len(val_df))
     debug_samples = [
         (str(val_df.iloc[i]["crop_path"]), str(val_df.iloc[i]["label"])) for i in range(n_debug)
