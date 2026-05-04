@@ -15,6 +15,7 @@ A reviewable, labeled dataset of personal Hebrew handwriting that a baseline OCR
 Validated in Phase 1: PDF ingestion, region detection, heuristic flagging, ClearML task infrastructure
 Validated in Phase 2: Streamlit review app, ClearML sync, manifest persistence
 Validated in Phase 3: CRNN+CTC training CLI, CER evaluation, eval_report.csv export, ClearML metric logging
+Validated in Phase 4: Online data augmentation (AugmentTransform), ClearML remote execution (--enqueue, --dataset_id), WSL2 GPU agent setup
 
 ### Active
 
@@ -80,4 +81,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-04-30 after Phase 3 completion — v1.0 milestone complete*
+*Last updated: 2026-05-04 after Phase 4 completion — v1.0 milestone complete (all 4 phases)*
