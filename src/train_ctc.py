@@ -82,9 +82,6 @@ def main() -> int:
         print("ERROR: at least one labeled row has an empty label.", file=sys.stderr)
         return 4
 
-    if args.dataset_id is not None:
-        labeled = remap_dataset_paths(labeled, args.dataset_id)
-
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
@@ -93,6 +90,9 @@ def main() -> int:
     if args.enqueue:
         task.execute_remotely(queue_name=args.queue_name)
         # local process exits here; agent re-runs from top and skips this call
+
+    if args.dataset_id is not None:
+        labeled = remap_dataset_paths(labeled, args.dataset_id)
 
     # TRAN-02: charset built from labeled labels (NFC inside build_charset)
     charset = build_charset(labeled["label"].tolist())
