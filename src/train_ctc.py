@@ -40,7 +40,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--val_frac", type=float, default=0.2)
     p.add_argument("--min_labeled", type=int, default=100)
     p.add_argument("--num_workers", type=int, default=0)
-    p.add_argument("--aug_copies", type=int, default=0,
+    p.add_argument("--aug_copies", type=int, default=4,
                    help="Augmented copies per original crop (0 = disabled, per D-05)")
     p.add_argument("--rotation_max", type=float, default=7.0,
                    help="Max rotation in degrees for augmentation (D-02)")
