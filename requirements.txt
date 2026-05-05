@@ -1,0 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
+pdf2image==1.17.0
+opencv-python-headless==4.13.0.92
+numpy==2.4.4
+pandas==3.0.2
+clearml==2.1.5
+streamlit==1.56.0
+scikit-learn>=1.5
+torch==2.11.0+cu128
+openai>=1.0
