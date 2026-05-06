@@ -5,25 +5,9 @@ import sys
 from pathlib import Path
 
 import pandas as pd
-import torch
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
-from torch.utils.data import DataLoader
 
 from src.clearml_utils import init_task, remap_dataset_paths, upload_file_artifact
-from src.ctc_utils import (
-    CRNN,
-    AugmentTransform,
-    CropDataset,
-    build_charset,
-    build_half_page_units,
-    cer,
-    crnn_collate,
-    greedy_decode,
-    predict_single,
-    resolve_device,
-    save_charset,
-    split_units,
-)
 
 DEBUG_SAMPLES = 5
 
@@ -90,6 +74,25 @@ def main() -> int:
     if args.enqueue:
         task.execute_remotely(queue_name=args.queue_name)
         # local process exits here; agent re-runs from top and skips this call
+
+    # Deferred: torch and ctc_utils not needed before execute_remotely (agent safety)
+    import torch  # noqa: PLC0415
+    from torch.utils.data import DataLoader  # noqa: PLC0415
+
+    from src.ctc_utils import (  # noqa: PLC0415
+        CRNN,
+        AugmentTransform,
+        CropDataset,
+        build_charset,
+        build_half_page_units,
+        cer,
+        crnn_collate,
+        greedy_decode,
+        predict_single,
+        resolve_device,
+        save_charset,
+        split_units,
+    )
 
     if args.dataset_id is not None:
         labeled = remap_dataset_paths(labeled, args.dataset_id)
