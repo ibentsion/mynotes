@@ -273,6 +273,40 @@ def test_resolve_device_returns_cpu_on_cpu_only_host():
     assert device == torch.device("cpu")
 
 
+def test_crnn_default_kwargs_match_legacy_architecture():
+    model = CRNN(num_classes=10)
+    assert model.rnn.hidden_size == 256
+    assert model.rnn.num_layers == 2
+    assert model.fc.in_features == 512
+
+
+def test_crnn_accepts_smaller_rnn_hidden_and_single_layer():
+    model = CRNN(num_classes=10, rnn_hidden=128, num_layers=1)
+    assert model.rnn.hidden_size == 128
+    assert model.rnn.num_layers == 1
+    assert model.fc.in_features == 256
+
+
+def test_crnn_accepts_larger_rnn_hidden():
+    model = CRNN(num_classes=10, rnn_hidden=512, num_layers=2)
+    assert model.rnn.hidden_size == 512
+    assert model.fc.in_features == 1024
+
+
+def test_crnn_forward_works_with_smaller_rnn_hidden():
+    model = CRNN(num_classes=10, rnn_hidden=128, num_layers=2)
+    x = torch.zeros(2, 1, 64, 128)  # batch=2, height=64, width=128
+    out = model(x)
+    assert out.shape == (32, 2, 10)  # T = W // 4 = 32
+
+
+def test_crnn_forward_works_with_single_layer():
+    model = CRNN(num_classes=10, rnn_hidden=256, num_layers=1)
+    x = torch.zeros(2, 1, 64, 128)
+    out = model(x)
+    assert out.shape == (32, 2, 10)
+
+
 # ---------------------------------------------------------------------------
 # AugmentTransform
 # ---------------------------------------------------------------------------
