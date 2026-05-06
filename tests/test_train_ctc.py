@@ -758,3 +758,109 @@ def test_no_enqueue_no_dataset_id_backward_compat(tmp_path):
     ])
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     assert (out_dir / "checkpoint.pt").exists()
+
+
+# ---------------------------------------------------------------------------
+# Tests 18-25: --rnn_hidden, --num_layers, --params CLI flags (Plan 05-02 Task 1)
+# ---------------------------------------------------------------------------
+
+
+def test_rnn_hidden_and_num_layers_defaults():
+    from src.train_ctc import _build_parser
+
+    args = _build_parser().parse_args(["--manifest", "m.csv"])
+    assert args.rnn_hidden == 256
+    assert args.num_layers == 2
+    assert args.params is None
+
+
+def test_rnn_hidden_and_num_layers_custom():
+    from src.train_ctc import _build_parser
+
+    args = _build_parser().parse_args([
+        "--manifest", "m.csv", "--rnn_hidden", "128", "--num_layers", "1",
+    ])
+    assert args.rnn_hidden == 128
+    assert args.num_layers == 1
+
+
+def test_rnn_hidden_rejects_value_not_in_choices():
+    from src.train_ctc import _build_parser
+
+    with pytest.raises(SystemExit) as exc:
+        _build_parser().parse_args(["--manifest", "m.csv", "--rnn_hidden", "999"])
+    assert exc.value.code == 2
+
+
+def test_num_layers_rejects_value_not_in_choices():
+    from src.train_ctc import _build_parser
+
+    with pytest.raises(SystemExit) as exc:
+        _build_parser().parse_args(["--manifest", "m.csv", "--num_layers", "5"])
+    assert exc.value.code == 2
+
+
+def test_params_file_loads_and_overrides_args(tmp_path: Path):
+    from src.train_ctc import _apply_params_file, _build_parser
+
+    params_file = tmp_path / "best.json"
+    params_file.write_text(json.dumps({
+        "lr": 0.005, "batch_size": 16, "epochs": 25,
+        "rnn_hidden": 512, "num_layers": 1, "aug_copies": 2,
+        "rotation_max": 5.0, "brightness_delta": 0.05, "noise_sigma": 0.01,
+    }))
+    args = _build_parser().parse_args([
+        "--manifest", "m.csv", "--params", str(params_file),
+    ])
+    _apply_params_file(args)
+    assert args.lr == pytest.approx(0.005)
+    assert args.batch_size == 16
+    assert args.epochs == 25
+    assert args.rnn_hidden == 512
+    assert args.num_layers == 1
+    assert args.aug_copies == 2
+
+
+def test_params_file_ignores_unknown_keys(tmp_path: Path):
+    from src.train_ctc import _apply_params_file, _build_parser
+
+    params_file = tmp_path / "best.json"
+    params_file.write_text(json.dumps({
+        "lr": 0.001, "best_val_cer": 0.42, "trial_number": 7, "n_trials_run": 20,
+    }))
+    args = _build_parser().parse_args([
+        "--manifest", "m.csv", "--params", str(params_file),
+    ])
+    _apply_params_file(args)
+    assert args.lr == pytest.approx(0.001)
+    assert not hasattr(args, "best_val_cer")
+    assert not hasattr(args, "trial_number")
+
+
+def test_params_file_casts_float_to_int_for_int_args(tmp_path: Path):
+    # Pitfall 4: JSON stores 8 as 8.0; must cast back to int via existing arg type
+    from src.train_ctc import _apply_params_file, _build_parser
+
+    params_file = tmp_path / "best.json"
+    params_file.write_text(json.dumps({"batch_size": 8.0, "epochs": 30.0}))
+    args = _build_parser().parse_args([
+        "--manifest", "m.csv", "--params", str(params_file),
+    ])
+    _apply_params_file(args)
+    assert args.batch_size == 8
+    assert isinstance(args.batch_size, int)
+    assert args.epochs == 30
+    assert isinstance(args.epochs, int)
+
+
+def test_missing_params_file_exits_6(tmp_path: Path):
+    # End-to-end: minimal manifest + missing --params path → exit code 6
+    manifest = tmp_path / "m.csv"
+    manifest.write_text("crop_path\n")  # any content; will fail before reading
+    result = _run_cli([
+        "--manifest", str(manifest),
+        "--params", str(tmp_path / "does_not_exist.json"),
+        "--output_dir", str(tmp_path / "out"),
+    ])
+    assert result.returncode == 6
+    assert "params file" in result.stderr.lower()
