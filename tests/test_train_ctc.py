@@ -295,11 +295,16 @@ def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypa
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
-            "--manifest", str(manifest),
-            "--output_dir", str(out_dir),
-            "--epochs", "1",
-            "--batch_size", "2",
-            "--min_labeled", "12",
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
         ]
         try:
             rc = main()
@@ -446,14 +451,22 @@ def test_aug_copies_zero_backward_compat(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "0",
-    ])
+    result = _run_cli(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "0",
+        ]
+    )
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     assert (out_dir / "checkpoint.pt").exists()
 
@@ -492,14 +505,22 @@ def test_aug_copies_nonzero_prints_effective_size(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "2",
-    ])
+    result = _run_cli(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "2",
+        ]
+    )
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     assert "effective dataset size" in result.stdout
 
@@ -556,12 +577,18 @@ def test_val_dataset_has_no_augment(mock_task_cls, tmp_path, monkeypatch):
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
-            "--manifest", str(manifest),
-            "--output_dir", str(out_dir),
-            "--epochs", "1",
-            "--batch_size", "2",
-            "--min_labeled", "12",
-            "--aug_copies", "2",
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "2",
         ]
         try:
             rc = main()
@@ -617,9 +644,12 @@ def test_enqueue_calls_execute_remotely_after_connect(mock_init_task, tmp_path, 
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
-        "--manifest", str(manifest),
-        "--output_dir", str(tmp_path / "out"),
-        "--min_labeled", "1",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(tmp_path / "out"),
+        "--min_labeled",
+        "1",
         "--enqueue",
     ]
     try:
@@ -656,9 +686,12 @@ def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
-        "--manifest", str(manifest),
-        "--output_dir", str(tmp_path / "out"),
-        "--min_labeled", "1",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(tmp_path / "out"),
+        "--min_labeled",
+        "1",
         "--enqueue",
     ]
     try:
@@ -668,7 +701,8 @@ def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
 
     mock_init_task.assert_called_once()
     _, kwargs = mock_init_task.call_args
-    tags = kwargs.get("tags", mock_init_task.call_args[0][2] if len(mock_init_task.call_args[0]) > 2 else [])
+    positional_args = mock_init_task.call_args[0]
+    tags = kwargs.get("tags", positional_args[2] if len(positional_args) > 2 else [])
     assert "gpu" in tags
 
 
@@ -697,10 +731,14 @@ def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
-        "--manifest", str(manifest),
-        "--output_dir", str(tmp_path / "out"),
-        "--min_labeled", "1",
-        "--dataset_id", "my-dataset-id",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(tmp_path / "out"),
+        "--min_labeled",
+        "1",
+        "--dataset_id",
+        "my-dataset-id",
     ]
     with patch("src.train_ctc.split_units", return_value=([], [])):
         try:
@@ -711,7 +749,9 @@ def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch
     mock_remap.assert_called_once()
     _, call_kwargs = mock_remap.call_args
     # dataset_id may be positional
-    called_id = call_kwargs.get("dataset_id", mock_remap.call_args[0][1] if len(mock_remap.call_args[0]) > 1 else None)
+    remap_positional = mock_remap.call_args[0]
+    default_id = remap_positional[1] if len(remap_positional) > 1 else None
+    called_id = call_kwargs.get("dataset_id", default_id)
     assert called_id == "my-dataset-id"
 
 
@@ -749,13 +789,20 @@ def test_no_enqueue_no_dataset_id_backward_compat(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-    ])
+    result = _run_cli(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+        ]
+    )
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     assert (out_dir / "checkpoint.pt").exists()
 
@@ -777,9 +824,16 @@ def test_rnn_hidden_and_num_layers_defaults():
 def test_rnn_hidden_and_num_layers_custom():
     from src.train_ctc import _build_parser
 
-    args = _build_parser().parse_args([
-        "--manifest", "m.csv", "--rnn_hidden", "128", "--num_layers", "1",
-    ])
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            "m.csv",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
+        ]
+    )
     assert args.rnn_hidden == 128
     assert args.num_layers == 1
 
@@ -804,14 +858,29 @@ def test_params_file_loads_and_overrides_args(tmp_path: Path):
     from src.train_ctc import _apply_params_file, _build_parser
 
     params_file = tmp_path / "best.json"
-    params_file.write_text(json.dumps({
-        "lr": 0.005, "batch_size": 16, "epochs": 25,
-        "rnn_hidden": 512, "num_layers": 1, "aug_copies": 2,
-        "rotation_max": 5.0, "brightness_delta": 0.05, "noise_sigma": 0.01,
-    }))
-    args = _build_parser().parse_args([
-        "--manifest", "m.csv", "--params", str(params_file),
-    ])
+    params_file.write_text(
+        json.dumps(
+            {
+                "lr": 0.005,
+                "batch_size": 16,
+                "epochs": 25,
+                "rnn_hidden": 512,
+                "num_layers": 1,
+                "aug_copies": 2,
+                "rotation_max": 5.0,
+                "brightness_delta": 0.05,
+                "noise_sigma": 0.01,
+            }
+        )
+    )
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            "m.csv",
+            "--params",
+            str(params_file),
+        ]
+    )
     _apply_params_file(args)
     assert args.lr == pytest.approx(0.005)
     assert args.batch_size == 16
@@ -825,12 +894,24 @@ def test_params_file_ignores_unknown_keys(tmp_path: Path):
     from src.train_ctc import _apply_params_file, _build_parser
 
     params_file = tmp_path / "best.json"
-    params_file.write_text(json.dumps({
-        "lr": 0.001, "best_val_cer": 0.42, "trial_number": 7, "n_trials_run": 20,
-    }))
-    args = _build_parser().parse_args([
-        "--manifest", "m.csv", "--params", str(params_file),
-    ])
+    params_file.write_text(
+        json.dumps(
+            {
+                "lr": 0.001,
+                "best_val_cer": 0.42,
+                "trial_number": 7,
+                "n_trials_run": 20,
+            }
+        )
+    )
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            "m.csv",
+            "--params",
+            str(params_file),
+        ]
+    )
     _apply_params_file(args)
     assert args.lr == pytest.approx(0.001)
     assert not hasattr(args, "best_val_cer")
@@ -843,9 +924,14 @@ def test_params_file_casts_float_to_int_for_int_args(tmp_path: Path):
 
     params_file = tmp_path / "best.json"
     params_file.write_text(json.dumps({"batch_size": 8.0, "epochs": 30.0}))
-    args = _build_parser().parse_args([
-        "--manifest", "m.csv", "--params", str(params_file),
-    ])
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            "m.csv",
+            "--params",
+            str(params_file),
+        ]
+    )
     _apply_params_file(args)
     assert args.batch_size == 8
     assert isinstance(args.batch_size, int)
@@ -857,10 +943,15 @@ def test_missing_params_file_exits_6(tmp_path: Path):
     # End-to-end: minimal manifest + missing --params path → exit code 6
     manifest = tmp_path / "m.csv"
     manifest.write_text("crop_path\n")  # any content; will fail before reading
-    result = _run_cli([
-        "--manifest", str(manifest),
-        "--params", str(tmp_path / "does_not_exist.json"),
-        "--output_dir", str(tmp_path / "out"),
-    ])
+    result = _run_cli(
+        [
+            "--manifest",
+            str(manifest),
+            "--params",
+            str(tmp_path / "does_not_exist.json"),
+            "--output_dir",
+            str(tmp_path / "out"),
+        ]
+    )
     assert result.returncode == 6
     assert "params file" in result.stderr.lower()
