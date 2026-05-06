@@ -168,9 +168,7 @@ class AugmentTransform:
 
         # 1. Rotation via affine_grid (pure PyTorch — no torchvision)
         # torch.rand gives [0,1]; scale to [-max, max]
-        angle_deg = float(
-            torch.rand(1, generator=rng) * 2 * self.rotation_max - self.rotation_max
-        )
+        angle_deg = float(torch.rand(1, generator=rng) * 2 * self.rotation_max - self.rotation_max)
         angle_rad = angle_deg * math.pi / 180.0
         cos_a, sin_a = math.cos(angle_rad), math.sin(angle_rad)
         theta = torch.tensor(
@@ -271,9 +269,7 @@ def build_half_page_units(
     return units
 
 
-def split_units(
-    units: dict[str, list[int]], val_frac: float = 0.2
-) -> tuple[list[str], list[str]]:
+def split_units(units: dict[str, list[int]], val_frac: float = 0.2) -> tuple[list[str], list[str]]:
     """Deterministic split: sort keys, take first ceil(len*val_frac) (min 1) as val.
 
     Returns (train_keys, val_keys). Per D-04: no random seed needed.
@@ -299,15 +295,23 @@ class CRNN(nn.Module):
     num_classes = len(charset) + 1  (blank at index 0)
     """
 
-    def __init__(self, num_classes: int) -> None:
+    def __init__(self, num_classes: int, rnn_hidden: int = 256, num_layers: int = 2) -> None:
         super().__init__()
         self.cnn = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2, 2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d((2, 1)),
+            nn.Conv2d(1, 32, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(32, 64, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(2, 2),
+            nn.Conv2d(64, 128, 3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d((2, 1)),
         )
-        self.rnn = nn.LSTM(128 * 8, 256, num_layers=2, bidirectional=True, batch_first=False)
-        self.fc = nn.Linear(512, num_classes)
+        self.rnn = nn.LSTM(
+            128 * 8, rnn_hidden, num_layers=num_layers, bidirectional=True, batch_first=False
+        )
+        self.fc = nn.Linear(rnn_hidden * 2, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.cnn(x)

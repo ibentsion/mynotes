@@ -80,9 +80,7 @@ def test_load_charset_missing_file_raises(tmp_path: Path):
 def test_greedy_decode_collapses_repeats_and_removes_blank():
     # log_probs rows: [0,1,0] -> argmax 1, [0,1,0] -> 1, [0,0,1] -> 2, [0,1,0] -> 1
     # After collapse: [1, 2, 1]. No blanks (blank=0 not in result).
-    log_probs = torch.tensor([
-        [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]
-    ])
+    log_probs = torch.tensor([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0, 1.0, 0.0]])
     assert greedy_decode(log_probs) == [1, 2, 1]
 
 
@@ -202,10 +200,12 @@ def test_build_half_page_units_assigns_top_and_bottom(tmp_path: Path):
     page_img = _write_gray_png(tmp_path / "page.png", 100, 200)
     # Row 0: y=10, h=20 → center_y=20 < 50 (midpoint) → top half '.0'
     # Row 1: y=60, h=20 → center_y=70 >= 50 → bottom half '.1'
-    df = pd.DataFrame([
-        _make_df_row(str(page_img), 1, y=10, h=20),
-        _make_df_row(str(page_img), 1, y=60, h=20),
-    ])
+    df = pd.DataFrame(
+        [
+            _make_df_row(str(page_img), 1, y=10, h=20),
+            _make_df_row(str(page_img), 1, y=60, h=20),
+        ]
+    )
     units = build_half_page_units(df)
     assert units == {"1.0": [0], "1.1": [1]}
 
@@ -273,6 +273,40 @@ def test_resolve_device_returns_cpu_on_cpu_only_host():
     assert device == torch.device("cpu")
 
 
+def test_crnn_default_kwargs_match_legacy_architecture():
+    model = CRNN(num_classes=10)
+    assert model.rnn.hidden_size == 256
+    assert model.rnn.num_layers == 2
+    assert model.fc.in_features == 512
+
+
+def test_crnn_accepts_smaller_rnn_hidden_and_single_layer():
+    model = CRNN(num_classes=10, rnn_hidden=128, num_layers=1)
+    assert model.rnn.hidden_size == 128
+    assert model.rnn.num_layers == 1
+    assert model.fc.in_features == 256
+
+
+def test_crnn_accepts_larger_rnn_hidden():
+    model = CRNN(num_classes=10, rnn_hidden=512, num_layers=2)
+    assert model.rnn.hidden_size == 512
+    assert model.fc.in_features == 1024
+
+
+def test_crnn_forward_works_with_smaller_rnn_hidden():
+    model = CRNN(num_classes=10, rnn_hidden=128, num_layers=2)
+    x = torch.zeros(2, 1, 64, 128)  # batch=2, height=64, width=128
+    out = model(x)
+    assert out.shape == (32, 2, 10)  # T = W // 4 = 32
+
+
+def test_crnn_forward_works_with_single_layer():
+    model = CRNN(num_classes=10, rnn_hidden=256, num_layers=1)
+    x = torch.zeros(2, 1, 64, 128)
+    out = model(x)
+    assert out.shape == (32, 2, 10)
+
+
 # ---------------------------------------------------------------------------
 # AugmentTransform
 # ---------------------------------------------------------------------------
@@ -329,10 +363,10 @@ def test_augment_transform_no_horizontal_flip(tmp_path: Path):
 
 def _make_aug_df(tmp_path: Path, n: int = 3) -> pd.DataFrame:
     rows = []
-    page_path = _write_gray_png(tmp_path / "page.png", 100, 200)
+    page_img = _write_gray_png(tmp_path / "page.png", 100, 200)
     for i in range(n):
         crop_path = _write_gray_png(tmp_path / f"crop_{i}.png", 64, 128)
-        rows.append(_make_df_row(str(crop_path), page_num=1, y=10 * i, h=8))
+        rows.append(_make_df_row(str(page_img), page_num=1, y=10 * i, h=8))
         rows[-1]["crop_path"] = str(crop_path)
     return pd.DataFrame(rows)
 
