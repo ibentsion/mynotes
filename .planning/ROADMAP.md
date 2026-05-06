@@ -85,3 +85,18 @@ ClearML agent setup for GPU training on Windows RTX 5060 via WSL2.
 Plans:
 - [x] 04-01-PLAN.md — Add AugmentTransform + extend CropDataset in ctc_utils.py; wire --aug_copies, --rotation_max, --brightness_delta, --noise_sigma CLI flags in train_ctc.py
 - [x] 04-02-PLAN.md — Add --enqueue, --queue_name, --dataset_id flags to train_ctc.py; add remap_dataset_paths to clearml_utils.py; write docs/clearml-agent-setup.md for WSL2 GPU agent
+
+### Phase 5: Hyperparameter tuning system: research Optuna vs alternatives, set up tuning infrastructure with batch jobs, integrate ClearML HPO reporting, reusable CLI entry point for retuning
+
+**Goal:** Standalone Optuna-driven hyperparameter sweep over training, architecture, and
+augmentation parameters; each trial is a ClearML task on the GPU queue; winning config is
+written to outputs/best_params.json and consumable by train_ctc.py via --params for
+zero-friction retuning.
+**Requirements**: HPO-01, HPO-02, HPO-03, HPO-04, HPO-05, HPO-06, HPO-07, HPO-08, HPO-09, HPO-10, HPO-11, HPO-12
+**Depends on:** Phase 4
+**Plans:** 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Parameterize CRNN (rnn_hidden, num_layers) in ctc_utils.py; add optuna 4.8.0 dependency
+- [ ] 05-02-PLAN.md — Extend train_ctc.py with --rnn_hidden, --num_layers, --params CLI flags; extract reusable run_training(args, on_epoch_end=...) helper for in-process tuner calls
+- [ ] 05-03-PLAN.md — Implement src/tune.py CLI: Optuna sweep with MedianPruner, per-trial ClearML task, outputs/best_params.json, hpo_sweep orchestrator report; add tune-hpo console script
