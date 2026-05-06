@@ -955,3 +955,172 @@ def test_missing_params_file_exits_6(tmp_path: Path):
     )
     assert result.returncode == 6
     assert "params file" in result.stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# Tests 26-30: run_training() helper (Plan 05-02 Task 2)
+# ---------------------------------------------------------------------------
+
+
+def _make_labeled_manifest(tmp_path: Path) -> tuple[Path, Path]:
+    """Build minimal 12-crop labeled manifest across 2 pages. Returns (manifest, out_dir)."""
+    page1 = tmp_path / "p1.png"
+    page2 = tmp_path / "p2.png"
+    _make_grayscale_png(page1, h=200, w=128)
+    _make_grayscale_png(page2, h=200, w=128)
+    labels = ["אב", "בג", "גד", "דה", "הו", "וז", "זח", "חט", "טי", "יכ", "כל", "לם"]
+    rows = []
+    for i, lab in enumerate(labels[:3]):
+        crop = tmp_path / f"p1_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[3:6]):
+        crop = tmp_path / f"p1_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page1), 1, 140 + i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[6:9]):
+        crop = tmp_path / f"p2_top_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, i * 10, 8, label=lab))
+    for i, lab in enumerate(labels[9:12]):
+        crop = tmp_path / f"p2_bot_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label=lab))
+    manifest = tmp_path / "manifest.csv"
+    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
+    return manifest, tmp_path / "out"
+
+
+def test_run_training_invokes_on_epoch_end_per_epoch(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    from src.clearml_utils import init_task
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "2",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "0",
+    ])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    task = init_task("handwriting-hebrew-ocr", "test_run_training", tags=["test"])
+    task.connect(vars(args), name="hyperparams")
+
+    calls: list[tuple[int, float]] = []
+    run_training(args, on_epoch_end=lambda ep, cer: calls.append((ep, cer)))
+    task.close()
+
+    assert len(calls) == 2
+    assert calls[0][0] == 0
+    assert calls[1][0] == 1
+    assert all(isinstance(c[1], float) for c in calls)
+
+
+def test_run_training_returns_best_val_cer_as_float(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    from src.clearml_utils import init_task
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "1",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "0",
+    ])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    task = init_task("handwriting-hebrew-ocr", "test_run_training_cer", tags=["test"])
+    task.connect(vars(args), name="hyperparams")
+
+    result = run_training(args)
+    task.close()
+
+    assert isinstance(result, float)
+    assert result >= 0.0
+
+
+def test_run_training_callback_exception_propagates_and_stops_loop(
+    tmp_path: Path, monkeypatch
+):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    from src.clearml_utils import init_task
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "3",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "0",
+    ])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    task = init_task("handwriting-hebrew-ocr", "test_run_training_prune", tags=["test"])
+    task.connect(vars(args), name="hyperparams")
+
+    epoch_counter = [0]
+
+    def pruning_callback(epoch: int, val_cer: float) -> None:
+        epoch_counter[0] += 1
+        if epoch == 0:
+            raise RuntimeError("pruned at epoch 0")
+
+    with pytest.raises(RuntimeError, match="pruned"):
+        run_training(args, on_epoch_end=pruning_callback)
+    task.close()
+
+    assert epoch_counter[0] == 1  # callback called once, loop stopped
+
+
+def test_run_training_does_not_call_init_task(tmp_path: Path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    from src.clearml_utils import init_task
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "1",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "0",
+    ])
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # Caller initialises the task; run_training must NOT call init_task internally
+    task = init_task("handwriting-hebrew-ocr", "test_no_init_in_helper", tags=["test"])
+    task.connect(vars(args), name="hyperparams")
+
+    init_task_call_count = [0]
+    original_init_task = init_task
+
+    def counting_init_task(*a, **kw):
+        init_task_call_count[0] += 1
+        return original_init_task(*a, **kw)
+
+    with patch("src.train_ctc.init_task", side_effect=counting_init_task):
+        run_training(args)
+    task.close()
+
+    assert init_task_call_count[0] == 0
+
+
+def test_main_still_writes_checkpoint_via_helper(tmp_path: Path):
+    # End-to-end via subprocess: refactored main() still produces checkpoint (1 epoch)
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    result = _run_cli([
+        "--manifest", str(manifest),
+        "--output_dir", str(out_dir),
+        "--epochs", "1",
+        "--batch_size", "2",
+        "--min_labeled", "12",
+        "--aug_copies", "0",
+    ])
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert (out_dir / "checkpoint.pt").exists()
