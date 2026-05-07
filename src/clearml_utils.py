@@ -14,6 +14,7 @@ def init_task(
         project_name=project,
         task_name=task_name,
         tags=tags if tags is not None else [],
+        reuse_last_task_id=False,
     )
 
 

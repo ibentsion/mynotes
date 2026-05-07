@@ -19,13 +19,16 @@ def test_init_task_calls_task_init_with_correct_args(mock_task_cls):
         project_name="handwriting-hebrew-ocr",
         task_name="data_prep",
         tags=["v1"],
+        reuse_last_task_id=False,
     )
 
 
 @patch("src.clearml_utils.Task")
 def test_init_task_default_tags_is_empty_list(mock_task_cls):
     init_task("p", "t")
-    mock_task_cls.init.assert_called_once_with(project_name="p", task_name="t", tags=[])
+    mock_task_cls.init.assert_called_once_with(
+        project_name="p", task_name="t", tags=[], reuse_last_task_id=False
+    )
 
 
 def test_upload_file_artifact_stringifies_path():
