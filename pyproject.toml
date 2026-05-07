@@ -39,6 +39,7 @@ train-ctc = "src.train_ctc:main"
 evaluate = "src.evaluate:main"
 experiment = "src.experiment:main"
 auto-label = "src.auto_label:main"
+tune-hpo = "src.tune:main"
 cluster-sampler = "cluster_sampler:main"
 backfill-page-paths = "backfill_page_paths:main"
 
