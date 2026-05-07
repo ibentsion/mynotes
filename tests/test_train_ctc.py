@@ -104,8 +104,10 @@ def test_build_parser_has_documented_defaults():
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
-def test_status_filter_keeps_only_labeled(mock_task_cls, tmp_path, monkeypatch):
+def test_status_filter_keeps_only_labeled(mock_task_cls, mock_init_task, tmp_path, monkeypatch):
+    mock_init_task.return_value = MagicMock()
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page_path = tmp_path / "page.png"
     _make_grayscale_png(page_path)
@@ -156,8 +158,9 @@ def test_status_filter_keeps_only_labeled(mock_task_cls, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_min_labeled_guard_exits_3(tmp_path, monkeypatch):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+@patch("src.train_ctc.init_task")
+def test_min_labeled_guard_exits_3(mock_init_task, tmp_path):
+    mock_init_task.return_value = MagicMock()
     page_path = tmp_path / "page.png"
     _make_grayscale_png(page_path)
     rows = [_row(str(tmp_path / f"c{i}.png"), str(page_path), 1, 10 * i, 8) for i in range(5)]
@@ -165,18 +168,30 @@ def test_min_labeled_guard_exits_3(tmp_path, monkeypatch):
         _make_grayscale_png(Path(r["crop_path"]))
     manifest = tmp_path / "manifest.csv"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(tmp_path / "out"),
-            "--min_labeled",
-            "10",
-        ]
-    )
-    assert result.returncode == 3, result.stderr
-    assert "labeled crops" in result.stderr
+
+    import io
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(tmp_path / "out"),
+        "--min_labeled",
+        "10",
+    ]
+    captured_err = io.StringIO()
+    try:
+        with patch("sys.stderr", captured_err):
+            rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 3, captured_err.getvalue()
+    assert "labeled crops" in captured_err.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +199,9 @@ def test_min_labeled_guard_exits_3(tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_empty_label_guard_exits_4(tmp_path):
+@patch("src.train_ctc.init_task")
+def test_empty_label_guard_exits_4(mock_init_task, tmp_path):
+    mock_init_task.return_value = MagicMock()
     page_path = tmp_path / "page.png"
     _make_grayscale_png(page_path)
     rows = [_row(str(tmp_path / f"c{i}.png"), str(page_path), 1, 10 * i, 8) for i in range(10)]
@@ -193,17 +210,25 @@ def test_empty_label_guard_exits_4(tmp_path):
         _make_grayscale_png(Path(r["crop_path"]))
     manifest = tmp_path / "manifest.csv"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(tmp_path / "out"),
-            "--min_labeled",
-            "10",
-        ]
-    )
-    assert result.returncode == 4, result.stderr
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(tmp_path / "out"),
+        "--min_labeled",
+        "10",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 4
 
 
 # ---------------------------------------------------------------------------
@@ -211,9 +236,13 @@ def test_empty_label_guard_exits_4(tmp_path):
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
-def test_charset_build_receives_labeled_labels(mock_task_cls, tmp_path, monkeypatch):
+def test_charset_build_receives_labeled_labels(
+    mock_task_cls, mock_init_task, tmp_path, monkeypatch
+):
     """Verify build_charset is called with labels from labeled rows only."""
+    mock_init_task.return_value = MagicMock()
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page_path = tmp_path / "page.png"
     _make_grayscale_png(page_path)
@@ -263,9 +292,15 @@ def test_charset_build_receives_labeled_labels(mock_task_cls, tmp_path, monkeypa
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
-def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypatch):
+def test_no_page_leakage_between_train_and_val(
+    mock_task_cls, mock_init_task, tmp_path, monkeypatch
+):
     """Verify that no half-page unit appears in both train and val splits (in-process)."""
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
@@ -320,6 +355,12 @@ def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypa
             "2",
             "--min_labeled",
             "12",
+            "--aug_copies",
+            "0",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
         ]
         try:
             rc = main()
@@ -333,11 +374,19 @@ def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypa
 
 
 # ---------------------------------------------------------------------------
-# Test 7: End-to-end smoke test (subprocess) — TRAN-04..08
+# Test 7: End-to-end smoke test (in-process) — TRAN-04..08
 # ---------------------------------------------------------------------------
 
 
-def test_train_one_epoch_writes_checkpoint_and_charset(tmp_path):
+@patch("src.train_ctc.init_task")
+@patch("src.train_ctc.Task")
+def test_train_one_epoch_writes_checkpoint_and_charset(
+    mock_task_cls, mock_init_task, tmp_path, capsys
+):
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
+
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -370,23 +419,36 @@ def test_train_one_epoch_writes_checkpoint_and_charset(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(out_dir),
-            "--epochs",
-            "1",
-            "--batch_size",
-            "2",
-            "--lr",
-            "1e-3",
-            "--min_labeled",
-            "12",
-        ]
-    )
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(out_dir),
+        "--epochs",
+        "1",
+        "--batch_size",
+        "2",
+        "--lr",
+        "1e-3",
+        "--min_labeled",
+        "12",
+        "--aug_copies",
+        "0",
+        "--rnn_hidden",
+        "128",
+        "--num_layers",
+        "1",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
     assert (out_dir / "checkpoint.pt").exists()
     assert (out_dir / "charset.json").exists()
     charset = json.loads((out_dir / "charset.json").read_text(encoding="utf-8"))
@@ -394,8 +456,9 @@ def test_train_one_epoch_writes_checkpoint_and_charset(tmp_path):
     for lab in labels:
         used.update(unicodedata.normalize("NFC", lab))
     assert sorted(used) == charset
-    assert "epoch=0" in result.stdout
-    assert "best_val_cer=" in result.stdout
+    captured = capsys.readouterr()
+    assert "epoch=0" in captured.out
+    assert "best_val_cer=" in captured.out
 
 
 # ---------------------------------------------------------------------------
@@ -403,17 +466,30 @@ def test_train_one_epoch_writes_checkpoint_and_charset(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_missing_manifest_exits_2(tmp_path):
-    result = _run_cli(
-        [
-            "--manifest",
-            str(tmp_path / "nope.csv"),
-            "--output_dir",
-            str(tmp_path / "out"),
-        ]
-    )
-    assert result.returncode == 2
-    assert "--manifest does not exist" in result.stderr
+@patch("src.train_ctc.init_task")
+def test_missing_manifest_exits_2(mock_init_task, tmp_path):
+    mock_init_task.return_value = MagicMock()
+    import io
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(tmp_path / "nope.csv"),
+        "--output_dir",
+        str(tmp_path / "out"),
+    ]
+    captured_err = io.StringIO()
+    try:
+        with patch("sys.stderr", captured_err):
+            rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 2
+    assert "--manifest does not exist" in captured_err.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -433,13 +509,17 @@ def test_build_parser_aug_defaults():
 
 
 # ---------------------------------------------------------------------------
-# Test 10: aug_copies=0 backward-compat (subprocess smoke test)
+# Test 10: aug_copies=0 backward-compat (in-process with mocked ClearML)
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
-def test_aug_copies_zero_backward_compat(mock_task_cls, tmp_path, monkeypatch):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+def test_aug_copies_zero_backward_compat(mock_task_cls, mock_init_task, tmp_path):
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
+
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -468,23 +548,34 @@ def test_aug_copies_zero_backward_compat(mock_task_cls, tmp_path, monkeypatch):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(out_dir),
-            "--epochs",
-            "1",
-            "--batch_size",
-            "2",
-            "--min_labeled",
-            "12",
-            "--aug_copies",
-            "0",
-        ]
-    )
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(out_dir),
+        "--epochs",
+        "1",
+        "--batch_size",
+        "2",
+        "--min_labeled",
+        "12",
+        "--aug_copies",
+        "0",
+        "--rnn_hidden",
+        "128",
+        "--num_layers",
+        "1",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
     assert (out_dir / "checkpoint.pt").exists()
 
 
@@ -493,9 +584,13 @@ def test_aug_copies_zero_backward_compat(mock_task_cls, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
-def test_aug_copies_nonzero_prints_effective_size(mock_task_cls, tmp_path, monkeypatch, capsys):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+def test_aug_copies_nonzero_prints_effective_size(mock_task_cls, mock_init_task, tmp_path, capsys):
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
+
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -524,24 +619,36 @@ def test_aug_copies_nonzero_prints_effective_size(mock_task_cls, tmp_path, monke
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(out_dir),
-            "--epochs",
-            "1",
-            "--batch_size",
-            "2",
-            "--min_labeled",
-            "12",
-            "--aug_copies",
-            "2",
-        ]
-    )
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
-    assert "effective dataset size" in result.stdout
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(out_dir),
+        "--epochs",
+        "1",
+        "--batch_size",
+        "2",
+        "--min_labeled",
+        "12",
+        "--aug_copies",
+        "2",
+        "--rnn_hidden",
+        "128",
+        "--num_layers",
+        "1",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "effective dataset size" in captured.out
 
 
 # ---------------------------------------------------------------------------
@@ -549,10 +656,14 @@ def test_aug_copies_nonzero_prints_effective_size(mock_task_cls, tmp_path, monke
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
-def test_val_dataset_has_no_augment(mock_task_cls, tmp_path, monkeypatch):
+def test_val_dataset_has_no_augment(mock_task_cls, mock_init_task, tmp_path):
     """Verify val_ds is created with augment=None regardless of --aug_copies."""
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
+
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -608,6 +719,10 @@ def test_val_dataset_has_no_augment(mock_task_cls, tmp_path, monkeypatch):
             "12",
             "--aug_copies",
             "2",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
         ]
         try:
             rc = main()
@@ -739,9 +854,11 @@ def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+@patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
 @patch("src.train_ctc.remap_dataset_paths")
-def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch):
+def test_dataset_id_calls_remap(mock_remap, mock_task_cls, mock_init_task, tmp_path, monkeypatch):
+    mock_init_task.return_value = MagicMock()
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page_path = tmp_path / "page.png"
     _make_grayscale_png(page_path)
@@ -788,7 +905,13 @@ def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch
 # ---------------------------------------------------------------------------
 
 
-def test_no_enqueue_no_dataset_id_backward_compat(tmp_path):
+@patch("src.train_ctc.init_task")
+@patch("src.train_ctc.Task")
+def test_no_enqueue_no_dataset_id_backward_compat(mock_task_cls, mock_init_task, tmp_path):
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
+
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -817,21 +940,34 @@ def test_no_enqueue_no_dataset_id_backward_compat(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(out_dir),
-            "--epochs",
-            "1",
-            "--batch_size",
-            "2",
-            "--min_labeled",
-            "12",
-        ]
-    )
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(out_dir),
+        "--epochs",
+        "1",
+        "--batch_size",
+        "2",
+        "--min_labeled",
+        "12",
+        "--aug_copies",
+        "0",
+        "--rnn_hidden",
+        "128",
+        "--num_layers",
+        "1",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
     assert (out_dir / "checkpoint.pt").exists()
 
 
@@ -1019,10 +1155,11 @@ def _make_labeled_manifest(tmp_path: Path) -> tuple[Path, Path]:
     return manifest, tmp_path / "out"
 
 
-def test_run_training_invokes_on_epoch_end_per_epoch(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+@patch("src.train_ctc.Task")
+def test_run_training_invokes_on_epoch_end_per_epoch(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
     manifest, out_dir = _make_labeled_manifest(tmp_path)
-    from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
@@ -1039,15 +1176,16 @@ def test_run_training_invokes_on_epoch_end_per_epoch(tmp_path: Path, monkeypatch
             "12",
             "--aug_copies",
             "0",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
         ]
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    task = init_task("handwriting-hebrew-ocr", "test_run_training", tags=["test"])
-    task.connect(vars(args), name="hyperparams")
 
     calls: list[tuple[int, float]] = []
     run_training(args, on_epoch_end=lambda ep, cer: calls.append((ep, cer)))
-    task.close()
 
     assert len(calls) == 2
     assert calls[0][0] == 0
@@ -1055,10 +1193,11 @@ def test_run_training_invokes_on_epoch_end_per_epoch(tmp_path: Path, monkeypatch
     assert all(isinstance(c[1], float) for c in calls)
 
 
-def test_run_training_returns_best_val_cer_as_float(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+@patch("src.train_ctc.Task")
+def test_run_training_returns_best_val_cer_as_float(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
     manifest, out_dir = _make_labeled_manifest(tmp_path)
-    from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
@@ -1075,23 +1214,25 @@ def test_run_training_returns_best_val_cer_as_float(tmp_path: Path, monkeypatch)
             "12",
             "--aug_copies",
             "0",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
         ]
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    task = init_task("handwriting-hebrew-ocr", "test_run_training_cer", tags=["test"])
-    task.connect(vars(args), name="hyperparams")
 
     result = run_training(args)
-    task.close()
 
     assert isinstance(result, float)
     assert result >= 0.0
 
 
-def test_run_training_callback_exception_propagates_and_stops_loop(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+@patch("src.train_ctc.Task")
+def test_run_training_callback_exception_propagates_and_stops_loop(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
     manifest, out_dir = _make_labeled_manifest(tmp_path)
-    from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
@@ -1108,11 +1249,13 @@ def test_run_training_callback_exception_propagates_and_stops_loop(tmp_path: Pat
             "12",
             "--aug_copies",
             "0",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
         ]
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    task = init_task("handwriting-hebrew-ocr", "test_run_training_prune", tags=["test"])
-    task.connect(vars(args), name="hyperparams")
 
     epoch_counter = [0]
 
@@ -1123,15 +1266,15 @@ def test_run_training_callback_exception_propagates_and_stops_loop(tmp_path: Pat
 
     with pytest.raises(RuntimeError, match="pruned"):
         run_training(args, on_epoch_end=pruning_callback)
-    task.close()
 
     assert epoch_counter[0] == 1  # callback called once, loop stopped
 
 
-def test_run_training_does_not_call_init_task(tmp_path: Path, monkeypatch):
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+@patch("src.train_ctc.Task")
+def test_run_training_does_not_call_init_task(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
     manifest, out_dir = _make_labeled_manifest(tmp_path)
-    from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
@@ -1148,45 +1291,62 @@ def test_run_training_does_not_call_init_task(tmp_path: Path, monkeypatch):
             "12",
             "--aug_copies",
             "0",
+            "--rnn_hidden",
+            "128",
+            "--num_layers",
+            "1",
         ]
     )
     out_dir.mkdir(parents=True, exist_ok=True)
-    # Caller initialises the task; run_training must NOT call init_task internally
-    task = init_task("handwriting-hebrew-ocr", "test_no_init_in_helper", tags=["test"])
-    task.connect(vars(args), name="hyperparams")
 
     init_task_call_count = [0]
-    original_init_task = init_task
 
     def counting_init_task(*a, **kw):
         init_task_call_count[0] += 1
-        return original_init_task(*a, **kw)
+        return MagicMock()
 
     with patch("src.train_ctc.init_task", side_effect=counting_init_task):
         run_training(args)
-    task.close()
 
     assert init_task_call_count[0] == 0
 
 
-def test_main_still_writes_checkpoint_via_helper(tmp_path: Path):
-    # End-to-end via subprocess: refactored main() still produces checkpoint (1 epoch)
+@patch("src.train_ctc.init_task")
+@patch("src.train_ctc.Task")
+def test_main_still_writes_checkpoint_via_helper(mock_task_cls, mock_init_task, tmp_path: Path):
+    # End-to-end via in-process main(): refactored main() still produces checkpoint (1 epoch)
+    mock_task = MagicMock()
+    mock_init_task.return_value = mock_task
+    mock_task_cls.current_task.return_value = mock_task
+
     manifest, out_dir = _make_labeled_manifest(tmp_path)
-    result = _run_cli(
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(out_dir),
-            "--epochs",
-            "1",
-            "--batch_size",
-            "2",
-            "--min_labeled",
-            "12",
-            "--aug_copies",
-            "0",
-        ]
-    )
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(out_dir),
+        "--epochs",
+        "1",
+        "--batch_size",
+        "2",
+        "--min_labeled",
+        "12",
+        "--aug_copies",
+        "0",
+        "--rnn_hidden",
+        "128",
+        "--num_layers",
+        "1",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
     assert (out_dir / "checkpoint.pt").exists()

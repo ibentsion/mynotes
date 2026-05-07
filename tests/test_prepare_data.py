@@ -1,6 +1,6 @@
-import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 
@@ -27,9 +27,11 @@ def test_manifest_columns_constant_has_fourteen_names():
     ]
 
 
-def test_prepare_data_end_to_end_on_synthetic_pdf(tmp_path, monkeypatch):
-    # Disable ClearML server calls in tests
-    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
+@patch("src.prepare_data.maybe_create_dataset")
+@patch("src.prepare_data.init_task")
+def test_prepare_data_end_to_end_on_synthetic_pdf(mock_init_task, mock_create_dataset, tmp_path):
+    mock_init_task.return_value = MagicMock()
+    mock_create_dataset.return_value = "fake-dataset-id"
 
     pdf_dir = tmp_path / "pdfs"
     output_dir = tmp_path / "outputs"
@@ -37,23 +39,24 @@ def test_prepare_data_end_to_end_on_synthetic_pdf(tmp_path, monkeypatch):
     output_dir.mkdir()
     make_synthetic_pdf(pdf_dir / "sample.pdf", pages=1)
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "src.prepare_data",
-            "--pdf_dir",
-            str(pdf_dir),
-            "--output_dir",
-            str(output_dir),
-            "--dpi",
-            "150",
-        ],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    from src.prepare_data import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.prepare_data",
+        "--pdf_dir",
+        str(pdf_dir),
+        "--output_dir",
+        str(output_dir),
+        "--dpi",
+        "150",
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
 
     manifest = output_dir / "manifest.csv"
     review_queue = output_dir / "review_queue.csv"

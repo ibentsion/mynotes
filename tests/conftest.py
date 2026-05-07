@@ -1,7 +1,10 @@
 """Pytest plugin: record per-test durations and warn about slow tests at session start."""
 
 import json
+import os
 from pathlib import Path
+
+import pytest
 
 _DURATIONS_FILE = Path(".pytest_durations.json")
 _SLOW_THRESHOLD = 10.0
@@ -20,6 +23,18 @@ def pytest_configure(config):
         print(f"\nSlow tests from last run (>{_SLOW_THRESHOLD:.0f}s):")
         for name, dur in slow:
             print(f"  {dur:6.1f}s  {name}")
+
+
+@pytest.fixture(autouse=True)
+def _clearml_env_cleanup():
+    """Remove CLEARML_PROC_MASTER_ID after each test.
+
+    ClearML writes this env var when task.close() is called in-process. Subprocesses
+    spawned afterwards inherit it and get Task.init() returning a StubObject, causing
+    Task.current_task() to return None and downstream AttributeErrors.
+    """
+    yield
+    os.environ.pop("CLEARML_PROC_MASTER_ID", None)
 
 
 def pytest_runtest_logreport(report):

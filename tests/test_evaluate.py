@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import cv2
 import numpy as np
@@ -202,39 +202,68 @@ def test_missing_charset_exits_4(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_evaluate_after_train_writes_report_with_correct_schema(tmp_path):
+@patch("src.evaluate.init_task")
+@patch("src.evaluate.Task")
+@patch("src.train_ctc.init_task")
+@patch("src.train_ctc.Task")
+def test_evaluate_after_train_writes_report_with_correct_schema(
+    mock_train_task_cls, mock_train_init_task, mock_eval_task_cls, mock_eval_init_task,
+    tmp_path, capsys
+):
+    mock_train_task = MagicMock()
+    mock_train_init_task.return_value = mock_train_task
+    mock_train_task_cls.current_task.return_value = mock_train_task
+
+    mock_eval_task = MagicMock()
+    mock_eval_init_task.return_value = mock_eval_task
+
     manifest, out_dir = _build_12_crop_manifest(tmp_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # Step 1: train for 1 epoch to produce checkpoint.pt + charset.json
-    train_result = _run_cli(
+    from src.train_ctc import main as train_main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
         "src.train_ctc",
-        [
-            "--manifest",
-            str(manifest),
-            "--output_dir",
-            str(out_dir),
-            "--epochs",
-            "1",
-            "--batch_size",
-            "2",
-            "--lr",
-            "1e-3",
-            "--min_labeled",
-            "12",
-        ],
-    )
-    assert train_result.returncode == 0, f"train stderr={train_result.stderr}"
+        "--manifest",
+        str(manifest),
+        "--output_dir",
+        str(out_dir),
+        "--epochs",
+        "1",
+        "--batch_size",
+        "2",
+        "--lr",
+        "1e-3",
+        "--min_labeled",
+        "12",
+        "--aug_copies",
+        "0",
+    ]
+    try:
+        train_rc = train_main()
+    finally:
+        sys.argv = argv_backup
+
+    assert train_rc == 0, "train_main() failed"
     assert (out_dir / "checkpoint.pt").exists()
     assert (out_dir / "charset.json").exists()
 
     # Step 2: evaluate
-    eval_result = _run_cli(
-        "src.evaluate",
-        ["--manifest", str(manifest), "--output_dir", str(out_dir)],
-    )
-    assert eval_result.returncode == 0, f"eval stderr={eval_result.stderr}"
-    assert "cer=" in eval_result.stdout
-    assert "exact_match_rate=" in eval_result.stdout
+    from src import evaluate as eval_mod
+
+    argv_backup = sys.argv[:]
+    sys.argv = ["src.evaluate", "--manifest", str(manifest), "--output_dir", str(out_dir)]
+    try:
+        eval_rc = eval_mod.main()
+    finally:
+        sys.argv = argv_backup
+
+    assert eval_rc == 0, "evaluate main() failed"
+    captured = capsys.readouterr()
+    assert "cer=" in captured.out
+    assert "exact_match_rate=" in captured.out
 
     report_path = out_dir / "eval_report.csv"
     assert report_path.exists()
@@ -258,8 +287,10 @@ def test_exact_match_rate_formula():
 # ---------------------------------------------------------------------------
 
 
+@patch("src.evaluate.init_task")
 @patch("src.evaluate.Task")
-def test_split_units_called_with_cli_val_frac(mock_task_cls, tmp_path, monkeypatch):
+def test_split_units_called_with_cli_val_frac(mock_task_cls, mock_init_task, tmp_path, monkeypatch):
+    mock_init_task.return_value = MagicMock()
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     manifest, out_dir = _build_12_crop_manifest(tmp_path)
     out_dir.mkdir(parents=True, exist_ok=True)
