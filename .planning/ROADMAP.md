@@ -98,5 +98,5 @@ zero-friction retuning.
 
 Plans:
 - [x] 05-01-PLAN.md — Parameterize CRNN (rnn_hidden, num_layers) in ctc_utils.py; add optuna 4.8.0 dependency
-- [ ] 05-02-PLAN.md — Extend train_ctc.py with --rnn_hidden, --num_layers, --params CLI flags; extract reusable run_training(args, on_epoch_end=...) helper for in-process tuner calls
+- [x] 05-02-PLAN.md — Extend train_ctc.py with --rnn_hidden, --num_layers, --params CLI flags; extract reusable run_training(args, on_epoch_end=...) helper for in-process tuner calls
 - [ ] 05-03-PLAN.md — Implement src/tune.py CLI: Optuna sweep with MedianPruner, per-trial ClearML task, outputs/best_params.json, hpo_sweep orchestrator report; add tune-hpo console script

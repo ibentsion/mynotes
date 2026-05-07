@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-01-PLAN.md
-last_updated: "2026-05-06T17:39:43.427Z"
-last_activity: 2026-05-06
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-05-07T06:08:57.519Z"
+last_activity: 2026-05-07
 progress:
   total_phases: 5
   completed_phases: 4
@@ -61,6 +61,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P01 | 17 | 2 tasks | 4 files |
 | Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P02 | 35 | 3 tasks | 5 files |
 | Phase 05-hyperparameter-tuning-system P01 | 3 | 2 tasks | 4 files |
+| Phase 05-hyperparameter-tuning-system P02 | 45 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -95,6 +96,10 @@ Recent decisions affecting current work:
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: remap_dataset_paths called in-memory before task.connect(): ensures remapped paths in ClearML hyperparams; manifest.csv never modified (D-10)
 - [Phase 05-hyperparameter-tuning-system]: CRNN default args rnn_hidden=256, num_layers=2 preserve byte-identical architecture — existing train_ctc.py call sites need zero changes
 - [Phase 05-hyperparameter-tuning-system]: optuna==4.8.0 pinned with exact version per project convention; fc layer uses rnn_hidden * 2 for BiLSTM bidirectional output
+- [Phase 05-hyperparameter-tuning-system]: run_training uses Task.current_task() rather than accepting task as arg — keeps tune.py caller simple and matches ClearML idiom
+- [Phase 05-hyperparameter-tuning-system]: on_epoch_end placed AFTER checkpoint save so pruned trials still save their best checkpoint from earlier epochs
+- [Phase 05-hyperparameter-tuning-system]: ValueError raised (not sys.exit) from run_training for empty split — main() maps to exit 5; tune.py can handle differently
+- [Phase 05-hyperparameter-tuning-system]: _apply_params_file mutates args BEFORE task.connect() so JSON-loaded hyperparams are tracked in ClearML (D-10)
 
 ### Pending Todos
 
@@ -121,6 +126,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-06T17:39:43.419Z
-Stopped at: Completed 05-01-PLAN.md
+Last session: 2026-05-07T06:08:57.514Z
+Stopped at: Completed 05-02-PLAN.md
 Resume file: None
