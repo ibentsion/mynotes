@@ -15,6 +15,7 @@ data/
 # Pipeline outputs
 outputs/*
 !outputs/.gitkeep
+# outputs/best_params.json — gitignored per Phase 5 D-11 (machine/dataset-specific)
 
 # ClearML
 .clearml/
