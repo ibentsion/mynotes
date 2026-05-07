@@ -126,8 +126,7 @@ def test_build_parser_defaults():
 # ---------------------------------------------------------------------------
 
 
-@patch("src.evaluate.Task")
-def test_missing_manifest_exits_2(mock_task_cls, tmp_path):
+def test_missing_manifest_exits_2(tmp_path):
     import io
 
     from src import evaluate as eval_mod
@@ -149,8 +148,7 @@ def test_missing_manifest_exits_2(mock_task_cls, tmp_path):
     assert "--manifest does not exist" in captured.getvalue()
 
 
-@patch("src.evaluate.Task")
-def test_missing_checkpoint_exits_3(mock_task_cls, tmp_path):
+def test_missing_checkpoint_exits_3(tmp_path):
     import io
 
     from src import evaluate as eval_mod
@@ -174,8 +172,7 @@ def test_missing_checkpoint_exits_3(mock_task_cls, tmp_path):
     assert "checkpoint not found" in captured.getvalue()
 
 
-@patch("src.evaluate.Task")
-def test_missing_charset_exits_4(mock_task_cls, tmp_path):
+def test_missing_charset_exits_4(tmp_path):
     import io
 
     from src import evaluate as eval_mod

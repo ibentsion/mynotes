@@ -39,23 +39,21 @@ def main() -> int:
     parser = _build_parser()
     args = parser.parse_args()
 
-    task = init_task("handwriting-hebrew-ocr", "evaluate_model", tags=["phase-3"])
-
+    # Guard checks before ClearML init — avoids background connection on bad inputs
     if not args.manifest.exists():
         print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-        task.close()
         return 2
 
     checkpoint_path = args.output_dir / "checkpoint.pt"
     charset_path = args.output_dir / "charset.json"
     if not checkpoint_path.exists():
         print(f"ERROR: checkpoint not found: {checkpoint_path}", file=sys.stderr)
-        task.close()
         return 3
     if not charset_path.exists():
         print(f"ERROR: charset not found: {charset_path}", file=sys.stderr)
-        task.close()
         return 4
+
+    task = init_task("handwriting-hebrew-ocr", "evaluate_model", tags=["phase-3"])
 
     # EVAL-04: hyperparameters tracked in ClearML
     task.connect(vars(args), name="hyperparams")

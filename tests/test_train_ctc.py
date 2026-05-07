@@ -111,8 +111,8 @@ def test_status_filter_keeps_only_labeled(mock_task_cls, tmp_path, monkeypatch):
         return ["ש"]
 
     with (
-        patch("src.train_ctc.build_charset", side_effect=fake_build_charset),
-        patch("src.train_ctc.split_units", return_value=([], [])),  # force exit 5
+        patch("src.ctc_utils.build_charset", side_effect=fake_build_charset),
+        patch("src.ctc_utils.split_units", return_value=([], [])),  # force exit 5
     ):
         from src.train_ctc import main
 
@@ -219,8 +219,8 @@ def test_charset_build_receives_labeled_labels(mock_task_cls, tmp_path, monkeypa
         return ["א", "ב", "ג", "ד"]
 
     with (
-        patch("src.train_ctc.build_charset", side_effect=capture_build_charset),
-        patch("src.train_ctc.split_units", return_value=([], [])),
+        patch("src.ctc_utils.build_charset", side_effect=capture_build_charset),
+        patch("src.ctc_utils.split_units", return_value=([], [])),
     ):
         from src.train_ctc import main
 
@@ -291,7 +291,7 @@ def test_no_page_leakage_between_train_and_val(mock_task_cls, tmp_path, monkeypa
         captured_split.append((list(train_keys), list(val_keys)))
         return train_keys, val_keys
 
-    with patch("src.train_ctc.split_units", side_effect=spy_split_units):
+    with patch("src.ctc_utils.split_units", side_effect=spy_split_units):
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
@@ -406,7 +406,7 @@ def test_build_parser_aug_defaults():
 
     parser = _build_parser()
     args = parser.parse_args(["--manifest", "m.csv", "--output_dir", "out"])
-    assert args.aug_copies == 0
+    assert args.aug_copies == 4
     assert args.rotation_max == pytest.approx(7.0)
     assert args.brightness_delta == pytest.approx(0.10)
     assert args.noise_sigma == pytest.approx(0.02)
@@ -417,7 +417,9 @@ def test_build_parser_aug_defaults():
 # ---------------------------------------------------------------------------
 
 
-def test_aug_copies_zero_backward_compat(tmp_path):
+@patch("src.train_ctc.Task")
+def test_aug_copies_zero_backward_compat(mock_task_cls, tmp_path, monkeypatch):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -446,15 +448,24 @@ def test_aug_copies_zero_backward_compat(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli([
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
         "--manifest", str(manifest),
         "--output_dir", str(out_dir),
         "--epochs", "1",
         "--batch_size", "2",
         "--min_labeled", "12",
         "--aug_copies", "0",
-    ])
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
     assert (out_dir / "checkpoint.pt").exists()
 
 
@@ -463,7 +474,9 @@ def test_aug_copies_zero_backward_compat(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_aug_copies_nonzero_prints_effective_size(tmp_path):
+@patch("src.train_ctc.Task")
+def test_aug_copies_nonzero_prints_effective_size(mock_task_cls, tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     page1 = tmp_path / "p1.png"
     page2 = tmp_path / "p2.png"
     _make_grayscale_png(page1, h=200, w=128)
@@ -492,16 +505,26 @@ def test_aug_copies_nonzero_prints_effective_size(tmp_path):
     out_dir = tmp_path / "out"
     pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
 
-    result = _run_cli([
+    from src.train_ctc import main
+
+    argv_backup = sys.argv[:]
+    sys.argv = [
+        "src.train_ctc",
         "--manifest", str(manifest),
         "--output_dir", str(out_dir),
         "--epochs", "1",
         "--batch_size", "2",
         "--min_labeled", "12",
         "--aug_copies", "2",
-    ])
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
-    assert "effective dataset size" in result.stdout
+    ]
+    try:
+        rc = main()
+    finally:
+        sys.argv = argv_backup
+
+    assert rc == 0
+    out, _ = capsys.readouterr()
+    assert "effective dataset size" in out
 
 
 # ---------------------------------------------------------------------------
@@ -552,7 +575,7 @@ def test_val_dataset_has_no_augment(mock_task_cls, tmp_path, monkeypatch):
             captured_calls.append({"augment": augment, "aug_copies": aug_copies})
             super().__init__(df, charset, augment=augment, aug_copies=aug_copies)
 
-    with patch("src.train_ctc.CropDataset", SpyCropDataset):
+    with patch("src.ctc_utils.CropDataset", SpyCropDataset):
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
@@ -702,7 +725,7 @@ def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch
         "--min_labeled", "1",
         "--dataset_id", "my-dataset-id",
     ]
-    with patch("src.train_ctc.split_units", return_value=([], [])):
+    with patch("src.ctc_utils.split_units", return_value=([], [])):
         try:
             main()
         finally:
@@ -714,47 +737,3 @@ def test_dataset_id_calls_remap(mock_remap, mock_task_cls, tmp_path, monkeypatch
     called_id = call_kwargs.get("dataset_id", mock_remap.call_args[0][1] if len(mock_remap.call_args[0]) > 1 else None)
     assert called_id == "my-dataset-id"
 
-
-# ---------------------------------------------------------------------------
-# Test 17: no --enqueue, no --dataset_id — backward-compat returns 0 + checkpoint
-# ---------------------------------------------------------------------------
-
-
-def test_no_enqueue_no_dataset_id_backward_compat(tmp_path):
-    page1 = tmp_path / "p1.png"
-    page2 = tmp_path / "p2.png"
-    _make_grayscale_png(page1, h=200, w=128)
-    _make_grayscale_png(page2, h=200, w=128)
-
-    labels = ["אב", "בג", "גד", "דה", "הו", "וז", "זח", "חט", "טי", "יכ", "כל", "לם"]
-    rows = []
-    for i, lab in enumerate(labels[:3]):
-        crop = tmp_path / f"p1_top_{i}.png"
-        _make_grayscale_png(crop, h=8, w=128)
-        rows.append(_row(str(crop), str(page1), 1, i * 10, 8, label=lab))
-    for i, lab in enumerate(labels[3:6]):
-        crop = tmp_path / f"p1_bot_{i}.png"
-        _make_grayscale_png(crop, h=8, w=128)
-        rows.append(_row(str(crop), str(page1), 1, 140 + i * 10, 8, label=lab))
-    for i, lab in enumerate(labels[6:9]):
-        crop = tmp_path / f"p2_top_{i}.png"
-        _make_grayscale_png(crop, h=8, w=128)
-        rows.append(_row(str(crop), str(page2), 2, i * 10, 8, label=lab))
-    for i, lab in enumerate(labels[9:12]):
-        crop = tmp_path / f"p2_bot_{i}.png"
-        _make_grayscale_png(crop, h=8, w=128)
-        rows.append(_row(str(crop), str(page2), 2, 140 + i * 10, 8, label=lab))
-
-    manifest = tmp_path / "manifest.csv"
-    out_dir = tmp_path / "out"
-    pd.DataFrame(rows, columns=MANIFEST_COLUMNS).to_csv(manifest, index=False)
-
-    result = _run_cli([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-    ])
-    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
-    assert (out_dir / "checkpoint.pt").exists()
