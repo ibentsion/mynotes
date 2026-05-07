@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: verifying
-stopped_at: Phase 5 context gathered
-last_updated: "2026-05-05T14:28:58.380Z"
+stopped_at: Completed 05-02-PLAN.md
+last_updated: "2026-05-07T06:08:57.519Z"
 last_activity: 2026-05-04
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 12
-  completed_plans: 12
+  total_plans: 15
+  completed_plans: 13
   percent: 5
 ---
 
@@ -60,6 +60,7 @@ Progress: [█░░░░░░░░░] 5%
 | Phase 03-training-evaluation P02 | 7 | 2 tasks | 2 files |
 | Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P01 | 17 | 2 tasks | 4 files |
 | Phase 04-data-augmentation-and-gpu-training-via-clearml-agent P02 | 35 | 3 tasks | 5 files |
+| Phase 05-hyperparameter-tuning-system P02 | 45 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,10 @@ Recent decisions affecting current work:
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: AugmentTransform: F.affine_grid + F.grid_sample with padding_mode=border prevents blank contamination on rotation (RESEARCH Pitfall 5)
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: patch src.train_ctc.init_task for ordering tests (not src.train_ctc.Task): Task.init goes through clearml_utils, patching init_task directly controls returned mock
 - [Phase 04-data-augmentation-and-gpu-training-via-clearml-agent]: remap_dataset_paths called in-memory before task.connect(): ensures remapped paths in ClearML hyperparams; manifest.csv never modified (D-10)
+- [Phase 05-hyperparameter-tuning-system]: run_training uses Task.current_task() rather than accepting task as arg — keeps tune.py caller simple and matches ClearML idiom
+- [Phase 05-hyperparameter-tuning-system]: on_epoch_end placed AFTER checkpoint save so pruned trials still save their best checkpoint from earlier epochs
+- [Phase 05-hyperparameter-tuning-system]: ValueError raised (not sys.exit) from run_training for empty split — main() maps to exit 5; tune.py can handle differently
+- [Phase 05-hyperparameter-tuning-system]: _apply_params_file mutates args BEFORE task.connect() so JSON-loaded hyperparams are tracked in ClearML (D-10)
 
 ### Pending Todos
 
@@ -118,6 +123,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-05-05T14:28:58.373Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-hyperparameter-tuning-system-research-optuna-vs-alternatives-set-up-tuning-infrastructure-with-batch-jobs-integrate-clearml-hpo-reporting-reusable-cli-entry-point-for-retuning/05-CONTEXT.md
+Last session: 2026-05-07T06:08:57.514Z
+Stopped at: Completed 05-02-PLAN.md
+Resume file: None
