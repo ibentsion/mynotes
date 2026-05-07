@@ -66,6 +66,22 @@ def _run_cli(args_list: list[str], env_extra: dict | None = None) -> subprocess.
     )
 
 
+@pytest.fixture(autouse=True)
+def _close_clearml_task_after_test():
+    yield
+    # ClearML uses a process-level singleton. Tests that call main() in-process
+    # (without mocking init_task) create a real offline task that must be closed
+    # before the next test can call Task.init() with a different name.
+    try:
+        from clearml import Task
+
+        task = Task.current_task()
+        if task is not None:
+            task.close()
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # Test 1: CLI parser defaults
 # ---------------------------------------------------------------------------
