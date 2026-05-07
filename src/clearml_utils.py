@@ -36,15 +36,19 @@ def report_manifest_stats(task: Task, df: pd.DataFrame) -> None:
 def maybe_create_dataset(
     project: str,
     dataset_name: str,
-    folders: list[Path],
+    folders: list[Path | tuple[Path, str]],
     files: list[Path] | None = None,
 ) -> str:
     """Create, populate, upload, and finalize a ClearML dataset. Returns dataset id."""
     ds = Dataset.create(
         dataset_name=dataset_name, dataset_project=project, use_current_task=True
     )
-    for folder in folders:
-        ds.add_files(str(folder))
+    for entry in folders:
+        if isinstance(entry, tuple):
+            folder, dataset_path = entry
+            ds.add_files(str(folder), dataset_path=dataset_path)
+        else:
+            ds.add_files(str(entry))
     for file in files or []:
         ds.add_files(str(file))
     ds.upload()

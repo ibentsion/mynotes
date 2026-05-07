@@ -172,7 +172,7 @@ def main() -> int:
     maybe_create_dataset(
         "handwriting-hebrew-ocr",
         args.dataset_name,
-        folders=[pages_dir, crops_dir],
+        folders=[(pages_dir, "pages"), (crops_dir, "crops")],
         files=[manifest_path, review_queue_path],
     )
 

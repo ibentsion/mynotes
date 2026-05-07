@@ -67,6 +67,41 @@ def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls):
 
 
 # ---------------------------------------------------------------------------
+# maybe_create_dataset target_folder tests
+# ---------------------------------------------------------------------------
+
+
+@patch("src.clearml_utils.Dataset")
+def test_maybe_create_dataset_uses_target_folder_for_tuple_entries(mock_dataset_cls):
+    mock_ds = MagicMock()
+    mock_ds.id = "tuple123"
+    mock_dataset_cls.create.return_value = mock_ds
+
+    result = maybe_create_dataset(
+        "proj",
+        "ds_v2",
+        folders=[(Path("/tmp/pages"), "pages"), (Path("/tmp/crops"), "crops")],
+    )
+
+    assert result == "tuple123"
+    assert mock_ds.add_files.call_args_list == [
+        call("/tmp/pages", dataset_path="pages"),
+        call("/tmp/crops", dataset_path="crops"),
+    ]
+
+
+@patch("src.clearml_utils.Dataset")
+def test_maybe_create_dataset_bare_path_uses_no_target_folder(mock_dataset_cls):
+    mock_ds = MagicMock()
+    mock_ds.id = "bare123"
+    mock_dataset_cls.create.return_value = mock_ds
+
+    maybe_create_dataset("proj", "ds_v3", folders=[Path("/tmp/flat")])
+
+    assert mock_ds.add_files.call_args_list == [call("/tmp/flat")]
+
+
+# ---------------------------------------------------------------------------
 # remap_dataset_paths tests
 # ---------------------------------------------------------------------------
 
