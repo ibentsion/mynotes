@@ -49,11 +49,14 @@ def test_report_manifest_stats_logs_total_and_flagged():
     assert logger.report_scalar.call_count == 2
 
 
+@patch("src.clearml_utils.Task")
 @patch("src.clearml_utils.Dataset")
-def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls):
+def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls, mock_task_cls):
     mock_ds = MagicMock()
     mock_ds.id = "abc123"
     mock_dataset_cls.create.return_value = mock_ds
+    # Simulate an active task so use_current_task=True is passed to Dataset.create
+    mock_task_cls.current_task.return_value = MagicMock()
 
     result = maybe_create_dataset("proj", "ds_v1", [Path("/tmp/a"), Path("/tmp/b")])
 
@@ -71,11 +74,15 @@ def test_maybe_create_dataset_full_lifecycle(mock_dataset_cls):
 # ---------------------------------------------------------------------------
 
 
+@patch("src.clearml_utils.Task")
 @patch("src.clearml_utils.Dataset")
-def test_maybe_create_dataset_uses_target_folder_for_tuple_entries(mock_dataset_cls):
+def test_maybe_create_dataset_uses_target_folder_for_tuple_entries(
+    mock_dataset_cls, mock_task_cls
+):
     mock_ds = MagicMock()
     mock_ds.id = "tuple123"
     mock_dataset_cls.create.return_value = mock_ds
+    mock_task_cls.current_task.return_value = MagicMock()
 
     result = maybe_create_dataset(
         "proj",
@@ -90,11 +97,13 @@ def test_maybe_create_dataset_uses_target_folder_for_tuple_entries(mock_dataset_
     ]
 
 
+@patch("src.clearml_utils.Task")
 @patch("src.clearml_utils.Dataset")
-def test_maybe_create_dataset_bare_path_uses_no_target_folder(mock_dataset_cls):
+def test_maybe_create_dataset_bare_path_uses_no_target_folder(mock_dataset_cls, mock_task_cls):
     mock_ds = MagicMock()
     mock_ds.id = "bare123"
     mock_dataset_cls.create.return_value = mock_ds
+    mock_task_cls.current_task.return_value = None  # no active task → use_current_task=False
 
     maybe_create_dataset("proj", "ds_v3", folders=[Path("/tmp/flat")])
 

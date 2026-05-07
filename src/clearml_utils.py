@@ -40,8 +40,12 @@ def maybe_create_dataset(
     files: list[Path] | None = None,
 ) -> str:
     """Create, populate, upload, and finalize a ClearML dataset. Returns dataset id."""
+    # use_current_task=True attaches to the running task (avoids Task.init conflict, per D-01).
+    # When no task is running, pass False so finalize() calls mark_completed() instead of
+    # just flush() — otherwise is_final() returns False and get_local_copy() raises.
+    use_current_task = Task.current_task() is not None
     ds = Dataset.create(
-        dataset_name=dataset_name, dataset_project=project, use_current_task=True
+        dataset_name=dataset_name, dataset_project=project, use_current_task=use_current_task
     )
     for entry in folders:
         if isinstance(entry, tuple):
