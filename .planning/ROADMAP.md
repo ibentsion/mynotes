@@ -94,7 +94,7 @@ written to outputs/best_params.json and consumable by train_ctc.py via --params 
 zero-friction retuning.
 **Requirements**: HPO-01, HPO-02, HPO-03, HPO-04, HPO-05, HPO-06, HPO-07, HPO-08, HPO-09, HPO-10, HPO-11, HPO-12
 **Depends on:** Phase 4
-**Plans:** 1/3 plans executed
+**Plans:** 2/3 plans executed
 
 Plans:
 - [x] 05-01-PLAN.md — Parameterize CRNN (rnn_hidden, num_layers) in ctc_utils.py; add optuna 4.8.0 dependency
