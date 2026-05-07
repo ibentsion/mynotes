@@ -16,6 +16,7 @@ Validated in Phase 1: PDF ingestion, region detection, heuristic flagging, Clear
 Validated in Phase 2: Streamlit review app, ClearML sync, manifest persistence
 Validated in Phase 3: CRNN+CTC training CLI, CER evaluation, eval_report.csv export, ClearML metric logging
 Validated in Phase 4: Online data augmentation (AugmentTransform), ClearML remote execution (--enqueue, --dataset_id), WSL2 GPU agent setup
+Validated in Phase 5: Optuna HPO sweep (tune.py), per-trial ClearML tasks, MedianPruner, outputs/best_params.json round-trip, tune-hpo console script
 
 ### Active
 
