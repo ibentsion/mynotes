@@ -74,7 +74,6 @@ def _close_clearml_task_after_test():
     # before the next test can call Task.init() with a different name.
     try:
         from clearml import Task
-
         task = Task.current_task()
         if task is not None:
             task.close()
@@ -657,7 +656,12 @@ def test_enqueue_calls_execute_remotely_after_connect(mock_init_task, tmp_path, 
     mock_task = MagicMock()
     mock_init_task.return_value = mock_task
     mock_task.connect.side_effect = lambda *a, **kw: call_order.append("connect")
-    mock_task.execute_remotely.side_effect = lambda **kw: call_order.append("execute_remotely")
+
+    def _fake_execute_remotely(**kw):
+        call_order.append("execute_remotely")
+        raise SystemExit(0)  # real execute_remotely calls os._exit(0) locally
+
+    mock_task.execute_remotely.side_effect = _fake_execute_remotely
 
     from src.train_ctc import main
 
@@ -673,7 +677,8 @@ def test_enqueue_calls_execute_remotely_after_connect(mock_init_task, tmp_path, 
         "--enqueue",
     ]
     try:
-        main()
+        with pytest.raises(SystemExit):
+            main()
     finally:
         sys.argv = argv_backup
 
@@ -700,6 +705,8 @@ def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
 
     mock_task = MagicMock()
     mock_init_task.return_value = mock_task
+    # real execute_remotely calls os._exit(0) locally
+    mock_task.execute_remotely.side_effect = SystemExit(0)
 
     from src.train_ctc import main
 
@@ -715,7 +722,8 @@ def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
         "--enqueue",
     ]
     try:
-        main()
+        with pytest.raises(SystemExit):
+            main()
     finally:
         sys.argv = argv_backup
 

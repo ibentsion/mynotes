@@ -318,6 +318,14 @@ def main() -> int:
         tags.append("phase-5")
     task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
 
+    # Resolve manifest from dataset when not available locally (remote agent path)
+    if args.dataset_id is not None and not args.manifest.exists():
+        from clearml import Dataset  # noqa: PLC0415
+
+        args.manifest = (
+            Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy()) / "manifest.csv"
+        )
+
     if not args.manifest.exists():
         print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
         return 2
@@ -343,8 +351,8 @@ def main() -> int:
 
     if args.enqueue:
         task.execute_remotely(queue_name=args.queue_name)
-        # local process exits here; agent re-runs from top and skips this call
-        return 0
+        # local process exits here via os._exit(); on agent this is a no-op,
+        # falls through to run_training() below
 
     try:
         best_val_cer = run_training(args)
