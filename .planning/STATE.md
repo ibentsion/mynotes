@@ -126,9 +126,10 @@ None yet.
 | 260503-pht | add debug samples to training — track ~5 val crop predictions per epoch in ClearML | 2026-05-03 | d15e942 | [260503-pht-add-debug-samples-to-training-so-i-can-s](./quick/260503-pht-add-debug-samples-to-training-so-i-can-s/) |
 | 260502-e71 | Add model prediction display to review app and lower training barrier to 100 labeled crops | 2026-05-02 | 6878b3d | [260502-e71-add-model-prediction-display-to-review-a](./quick/260502-e71-add-model-prediction-display-to-review-a/) |
 | 260506-klj | Defer torch/ctc_utils imports until after execute_remotely (agent safety) | 2026-05-06 | d9f5d7d | [260506-klj-train-ctc-failed-due-to-import-error-mak](./quick/260506-klj-train-ctc-failed-due-to-import-error-mak/) |
+| 260507-oa8 | Fix ClearML dataset upload bug (dataset_path kwarg + use_current_task conditional) and add roundtrip integration test | 2026-05-07 | 8aaedbb | [260507-oa8-generate-a-test-dataset-with-the-desired](./quick/260507-oa8-generate-a-test-dataset-with-the-desired/) |
 
 ## Session Continuity
 
-Last session: 2026-05-07T10:15:21.144Z
-Stopped at: Completed 05-03-PLAN.md
+Last session: 2026-05-07T14:40:14Z
+Stopped at: Completed quick/260507-oa8-PLAN.md
 Resume file: None
