@@ -3,6 +3,7 @@
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
@@ -110,49 +111,22 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main() -> int:
-    parser = _build_parser()
-    args = parser.parse_args()
+def run_training(
+    args: argparse.Namespace,
+    on_epoch_end: Callable[[int, float], None] | None = None,
+) -> float:
+    """Run train+val for args.epochs. Returns best_val_cer.
 
-    try:
-        _apply_params_file(args)
-    except FileNotFoundError as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        return 6
+    Pre-conditions: args.manifest exists; args.output_dir is writable; the caller
+    (main() or tune.py) has already initialised a ClearML task and called
+    task.connect(vars(args)). This function reads task = Task.current_task() to
+    get the logger.
 
-    tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
-    if args.params is not None:
-        tags.append("phase-5")
-    task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
-
-    if not args.manifest.exists():
-        print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-        return 2
-
-    df = pd.read_csv(args.manifest)
-    labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
-
-    if len(labeled) < args.min_labeled:
-        print(
-            f"ERROR: only {len(labeled)} labeled crops; need at least {args.min_labeled}.",
-            file=sys.stderr,
-        )
-        return 3
-
-    if labeled["label"].fillna("").eq("").any():
-        print("ERROR: at least one labeled row has an empty label.", file=sys.stderr)
-        return 4
-
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
-    task.connect(vars(args), name="hyperparams")
-
-    if args.enqueue:
-        task.execute_remotely(queue_name=args.queue_name)
-        # local process exits here; agent re-runs from top and skips this call
-
-    # Deferred: torch and ctc_utils not needed before execute_remotely (agent safety)
+    on_epoch_end(epoch, val_cer) is called after each validation pass when provided.
+    Used by tune.py for Optuna pruning. If the callback raises, the exception
+    propagates and no further epochs run. The most recent best checkpoint (if any
+    was saved earlier in the loop) remains on disk.
+    """
     import torch  # noqa: PLC0415
     from torch.utils.data import DataLoader  # noqa: PLC0415
 
@@ -171,6 +145,12 @@ def main() -> int:
         split_units,
     )
 
+    task = Task.current_task()
+    logger = task.get_logger()
+
+    df = pd.read_csv(args.manifest)
+    labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
+
     if args.dataset_id is not None:
         labeled = remap_dataset_paths(labeled, args.dataset_id)
 
@@ -185,11 +165,7 @@ def main() -> int:
     val_idx = [i for k in val_keys for i in units[k]]
 
     if not train_idx or not val_idx:
-        print(
-            f"ERROR: split produced empty set (train={len(train_idx)}, val={len(val_idx)}).",
-            file=sys.stderr,
-        )
-        return 5
+        raise ValueError(f"split produced empty set (train={len(train_idx)}, val={len(val_idx)}).")
 
     device = resolve_device()  # TRAN-05
 
@@ -243,7 +219,6 @@ def main() -> int:
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
 
-    logger = task.get_logger()
     best_val_cer = float("inf")
     checkpoint_path = args.output_dir / "checkpoint.pt"
 
@@ -317,15 +292,68 @@ def main() -> int:
             f"val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f}"
         )
 
+        if on_epoch_end is not None:
+            on_epoch_end(epoch, val_cer)
+
     # TRAN-08: artifact uploads at end of training
     if checkpoint_path.exists():
         upload_file_artifact(task, "checkpoint", checkpoint_path)
     upload_file_artifact(task, "charset", args.output_dir / "charset.json")
 
-    print(
-        f"Done. best_val_cer={best_val_cer:.4f} "
-        f"checkpoint={checkpoint_path} charset={args.output_dir / 'charset.json'}"
-    )
+    return best_val_cer
+
+
+def main() -> int:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    try:
+        _apply_params_file(args)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 6
+
+    tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
+    if args.params is not None:
+        tags.append("phase-5")
+    task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
+
+    if not args.manifest.exists():
+        print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
+        return 2
+
+    df = pd.read_csv(args.manifest)
+    labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
+
+    if len(labeled) < args.min_labeled:
+        print(
+            f"ERROR: only {len(labeled)} labeled crops; need at least {args.min_labeled}.",
+            file=sys.stderr,
+        )
+        return 3
+
+    if labeled["label"].fillna("").eq("").any():
+        print("ERROR: at least one labeled row has an empty label.", file=sys.stderr)
+        return 4
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
+    task.connect(vars(args), name="hyperparams")
+
+    if args.enqueue:
+        task.execute_remotely(queue_name=args.queue_name)
+        # local process exits here; agent re-runs from top and skips this call
+        return 0
+
+    try:
+        best_val_cer = run_training(args)
+    except ValueError as e:
+        # split produced empty set (preserved exit code 5)
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 5
+
+    print(f"Done. best_val_cer={best_val_cer:.4f}")
     return 0
 
 

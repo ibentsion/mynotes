@@ -997,14 +997,22 @@ def test_run_training_invokes_on_epoch_end_per_epoch(tmp_path: Path, monkeypatch
     from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
-    args = _build_parser().parse_args([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "2",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "0",
-    ])
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "2",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "0",
+        ]
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     task = init_task("handwriting-hebrew-ocr", "test_run_training", tags=["test"])
     task.connect(vars(args), name="hyperparams")
@@ -1025,14 +1033,22 @@ def test_run_training_returns_best_val_cer_as_float(tmp_path: Path, monkeypatch)
     from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
-    args = _build_parser().parse_args([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "0",
-    ])
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "0",
+        ]
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     task = init_task("handwriting-hebrew-ocr", "test_run_training_cer", tags=["test"])
     task.connect(vars(args), name="hyperparams")
@@ -1044,22 +1060,28 @@ def test_run_training_returns_best_val_cer_as_float(tmp_path: Path, monkeypatch)
     assert result >= 0.0
 
 
-def test_run_training_callback_exception_propagates_and_stops_loop(
-    tmp_path: Path, monkeypatch
-):
+def test_run_training_callback_exception_propagates_and_stops_loop(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("CLEARML_OFFLINE_MODE", "1")
     manifest, out_dir = _make_labeled_manifest(tmp_path)
     from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
-    args = _build_parser().parse_args([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "3",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "0",
-    ])
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "3",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "0",
+        ]
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     task = init_task("handwriting-hebrew-ocr", "test_run_training_prune", tags=["test"])
     task.connect(vars(args), name="hyperparams")
@@ -1084,14 +1106,22 @@ def test_run_training_does_not_call_init_task(tmp_path: Path, monkeypatch):
     from src.clearml_utils import init_task
     from src.train_ctc import _build_parser, run_training
 
-    args = _build_parser().parse_args([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "0",
-    ])
+    args = _build_parser().parse_args(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "0",
+        ]
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
     # Caller initialises the task; run_training must NOT call init_task internally
     task = init_task("handwriting-hebrew-ocr", "test_no_init_in_helper", tags=["test"])
@@ -1114,13 +1144,21 @@ def test_run_training_does_not_call_init_task(tmp_path: Path, monkeypatch):
 def test_main_still_writes_checkpoint_via_helper(tmp_path: Path):
     # End-to-end via subprocess: refactored main() still produces checkpoint (1 epoch)
     manifest, out_dir = _make_labeled_manifest(tmp_path)
-    result = _run_cli([
-        "--manifest", str(manifest),
-        "--output_dir", str(out_dir),
-        "--epochs", "1",
-        "--batch_size", "2",
-        "--min_labeled", "12",
-        "--aug_copies", "0",
-    ])
+    result = _run_cli(
+        [
+            "--manifest",
+            str(manifest),
+            "--output_dir",
+            str(out_dir),
+            "--epochs",
+            "1",
+            "--batch_size",
+            "2",
+            "--min_labeled",
+            "12",
+            "--aug_copies",
+            "0",
+        ]
+    )
     assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
     assert (out_dir / "checkpoint.pt").exists()
