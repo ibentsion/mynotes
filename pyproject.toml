@@ -51,6 +51,7 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--durations=0"
 
 [[tool.uv.index]]
 name = "pytorch-cpu"

@@ -27,3 +27,4 @@ clearml.conf.local
 
 # Claude Code worktrees
 .claude/worktrees/
+.pytest_durations.json
