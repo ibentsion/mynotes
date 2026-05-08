@@ -1,0 +1,14 @@
+services:
+  mynotes-cpu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cpu
+    image: mynotes-cpu
+    volumes:
+      - ..:/workspace
+    working_dir: /workspace
+    command: python -c "import torch, cv2, clearml; print('all imports ok')"
+    environment:
+      - CLEARML_API_ACCESS_KEY=${CLEARML_API_ACCESS_KEY:-}
+      - CLEARML_API_SECRET_KEY=${CLEARML_API_SECRET_KEY:-}
+      - CLEARML_API_HOST=${CLEARML_API_HOST:-}
