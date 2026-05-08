@@ -16,6 +16,5 @@ echo "Press Ctrl+C to stop."
 
 clearml-agent daemon \
     --queue "$QUEUE" \
-    --docker "$IMAGE_NAME" \
-    --docker-args "--gpus all --shm-size=8g" \
+    --docker "$IMAGE_NAME --gpus all --shm-size=8g" \
     --foreground
