@@ -33,4 +33,10 @@ RUN pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt
 # Install clearml-agent so the container can act as an agent executor
 RUN pip install --no-cache-dir clearml-agent
 
+# Update your RUN command to include openssh-client and git
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssh-client \
+    && rm -rf /var/lib/apt/lists/*
+
+
 WORKDIR /root
