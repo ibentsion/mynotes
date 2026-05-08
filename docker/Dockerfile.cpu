@@ -1,0 +1,31 @@
+FROM python:3.13-slim-bookworm
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    poppler-utils \
+    libpoppler-cpp-dev \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install CPU torch deps — same package versions but CPU wheel index
+RUN pip install --no-cache-dir \
+    pdf2image==1.17.0 \
+    opencv-python-headless==4.13.0.92 \
+    numpy==2.4.4 \
+    pandas==3.0.2 \
+    clearml==2.1.5 \
+    streamlit==1.56.0 \
+    "scikit-learn>=1.5" \
+    openai>=1.0 \
+    optuna==4.8.0
+
+# Install CPU torch separately from the CPU wheel index
+RUN pip install --no-cache-dir \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    torch==2.11.0+cpu
+
+WORKDIR /workspace
