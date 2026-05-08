@@ -14,6 +14,7 @@ MANIFEST_CACHE = Path(
     "/ds_02210b47a0534666b0462a175bf2af9d/manifest.csv"
 ).expanduser()
 CROPS_DIR = Path("data/crops")
+PAGES_DIR = Path("data/pages")
 DATASET_PROJECT = "handwriting-hebrew-ocr"
 DATASET_NAME = "data_prep"
 QUEUE_NAME = "ofek"
@@ -27,6 +28,8 @@ def build_dataset() -> str:
         raise FileNotFoundError(f"Cached manifest not found: {MANIFEST_CACHE}")
     if not CROPS_DIR.is_dir() or not any(CROPS_DIR.glob("*.png")):
         raise FileNotFoundError(f"Crops dir missing or empty: {CROPS_DIR}")
+    if not PAGES_DIR.is_dir() or not any(PAGES_DIR.glob("*.png")):
+        raise FileNotFoundError(f"Pages dir missing or empty: {PAGES_DIR}")
 
     use_current_task = Task.current_task() is not None
     ds = Dataset.create(
@@ -39,6 +42,7 @@ def build_dataset() -> str:
         shutil.copy(MANIFEST_CACHE, Path(tmpdir) / "manifest.csv")
         ds.add_files(str(Path(tmpdir) / "manifest.csv"))
         ds.add_files(path=str(CROPS_DIR), dataset_path="crops")
+        ds.add_files(path=str(PAGES_DIR), dataset_path="pages")
         ds.upload()
 
     ds.finalize()
@@ -47,6 +51,8 @@ def build_dataset() -> str:
 
 
 def verify_roundtrip(dataset_id: str) -> None:
+    import csv
+
     root = Path(Dataset.get(dataset_id=dataset_id).get_local_copy())
     manifest = root / "manifest.csv"
     assert manifest.is_file(), f"manifest.csv missing at {manifest}"
@@ -54,8 +60,22 @@ def verify_roundtrip(dataset_id: str) -> None:
     crops = list((root / "crops").glob("*.png"))
     assert crops, f"No PNGs found under {root / 'crops'}"
 
+    pages = list((root / "pages").glob("*.png"))
+    assert pages, f"No PNGs found under {root / 'pages'}"
+
+    # Verify every page referenced in the manifest resolves to a real file
+    missing_pages: list[str] = []
+    with open(manifest) as f:
+        for row in csv.DictReader(f):
+            page_name = Path(row["page_path"]).name
+            if not (root / "pages" / page_name).is_file():
+                missing_pages.append(page_name)
+    assert not missing_pages, (
+        f"{len(missing_pages)} manifest pages missing in dataset: {missing_pages[:3]}"
+    )
+
     manifest_rows = sum(1 for _ in open(manifest)) - 1  # noqa: SIM115
-    print(f"Roundtrip OK — {manifest_rows} manifest rows, {len(crops)} crop PNGs")
+    print(f"Roundtrip OK — {manifest_rows} manifest rows, {len(crops)} crops, {len(pages)} pages")
 
 
 def enqueue_training(dataset_id: str) -> str:
