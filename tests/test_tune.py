@@ -200,6 +200,63 @@ def test_per_trial_task_tagged_phase_5_and_hpo_trial():
         assert tags == ["phase-5", "hpo-trial"]
 
 
+def test_objective_ignores_extra_sys_argv_args(monkeypatch, tmp_path: Path):
+    from src.tune import _objective
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["tune.py", "--n_trials", "20", "--n_startup_trials", "5", "--n_warmup_steps", "5"],
+    )
+    sweep_args = MagicMock()
+    sweep_args.manifest = Path("data/manifest.csv")
+    sweep_args.min_labeled = 100
+    sweep_args.dataset_id = None
+    sweep_args.output_dir = tmp_path / "out_argv"
+    trial = MagicMock(spec=optuna.Trial)
+    trial.number = 0
+    trial.suggest_float.side_effect = lambda *a, **kw: 0.001
+    trial.suggest_int.side_effect = lambda *a, **kw: 30
+    trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
+    trial.should_prune.return_value = False
+    with patch("src.tune.run_training", return_value=0.5), patch("src.tune.init_task") as mock_init:
+        mock_init.return_value = MagicMock()
+        result = _objective(trial, sweep_args)
+    assert result == 0.5
+
+
+def test_e2e_one_trial_no_enqueue(monkeypatch, tmp_path: Path):
+    from src.tune import PARAM_KEYS, main
+
+    manifest = tmp_path / "manifest.csv"
+    manifest.write_text("crop_path,label,status,page_id\nfake/crop.png,א,labeled,p1\n")
+    out_dir = tmp_path / "out"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tune.py",
+            "--manifest",
+            str(manifest),
+            "--n_trials",
+            "1",
+            "--min_labeled",
+            "1",
+            "--output_dir",
+            str(out_dir),
+        ],
+    )
+    with patch("src.tune.run_training", return_value=0.5), patch("src.tune.init_task") as mock_init:
+        mock_init.return_value = MagicMock()
+        ret = main()
+    assert ret == 0
+    best_params_path = out_dir / "best_params.json"
+    assert best_params_path.exists()
+    loaded = json.loads(best_params_path.read_text())
+    for k in PARAM_KEYS:
+        assert k in loaded, f"missing key: {k}"
+
+
 def test_enqueue_calls_execute_remotely_before_optimize(tmp_path: Path):
     from src.tune import main
 

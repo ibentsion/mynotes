@@ -22,7 +22,6 @@ import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — established pattern
 
 from src.clearml_utils import init_task
-from src.train_ctc import _build_parser as _build_train_parser
 from src.train_ctc import run_training
 
 PARAM_KEYS = (
@@ -55,8 +54,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output_dir", type=Path, default=Path("outputs"), help="Where to write best_params.json"
     )
     p.add_argument(
-        "--dataset_id", type=str, default=None,
-        help="ClearML dataset ID; resolves manifest on agent"
+        "--dataset_id",
+        type=str,
+        default=None,
+        help="ClearML dataset ID; resolves manifest on agent",
     )
     p.add_argument(
         "--min_labeled", type=int, default=100, help="Passed to train_ctc; matches its default"
@@ -119,15 +120,32 @@ def _make_pruning_callback(
 def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
     params = _suggest_params(trial)
 
-    cli = ["--manifest", str(sweep_args.manifest), "--min_labeled", str(sweep_args.min_labeled)]
-    if sweep_args.dataset_id is not None:
-        cli += ["--dataset_id", sweep_args.dataset_id]
-    # parse_known_args: ClearML monkey-patches parse_args() to inject all stored task
-    # hyperparams (including tune.py's --n_trials etc.) which train_ctc's parser rejects.
-    train_args, _ = _build_train_parser().parse_known_args(cli)
-    for k, v in params.items():
-        setattr(train_args, k, v)
-    train_args.output_dir = sweep_args.output_dir / f"trial_{trial.number}"
+    # Bypass argparse entirely. ClearML monkey-patches both parse_args and
+    # parse_known_args, and on the GPU agent it injects tune.py-only flags
+    # (--n_trials, --n_startup_trials, --n_warmup_steps) into any parser
+    # call inside this process — train_ctc's parser rejects them. Direct
+    # Namespace construction cannot be intercepted.
+    train_args = argparse.Namespace(
+        manifest=sweep_args.manifest,
+        output_dir=sweep_args.output_dir / f"trial_{trial.number}",
+        val_frac=0.2,
+        min_labeled=sweep_args.min_labeled,
+        num_workers=0,
+        params=None,
+        enqueue=False,
+        queue_name="gpu",
+        dataset_id=sweep_args.dataset_id,
+        # Populated from Optuna trial.suggest_*:
+        lr=params["lr"],
+        batch_size=params["batch_size"],
+        epochs=params["epochs"],
+        rnn_hidden=params["rnn_hidden"],
+        num_layers=params["num_layers"],
+        aug_copies=params["aug_copies"],
+        rotation_max=params["rotation_max"],
+        brightness_delta=params["brightness_delta"],
+        noise_sigma=params["noise_sigma"],
+    )
     train_args.output_dir.mkdir(parents=True, exist_ok=True)
 
     trial_task = _init_trial_task(trial, train_args)
