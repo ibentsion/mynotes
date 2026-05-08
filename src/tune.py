@@ -122,7 +122,9 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
     cli = ["--manifest", str(sweep_args.manifest), "--min_labeled", str(sweep_args.min_labeled)]
     if sweep_args.dataset_id is not None:
         cli += ["--dataset_id", sweep_args.dataset_id]
-    train_args = _build_train_parser().parse_args(cli)
+    # parse_known_args: ClearML monkey-patches parse_args() to inject all stored task
+    # hyperparams (including tune.py's --n_trials etc.) which train_ctc's parser rejects.
+    train_args, _ = _build_train_parser().parse_known_args(cli)
     for k, v in params.items():
         setattr(train_args, k, v)
     train_args.output_dir = sweep_args.output_dir / f"trial_{trial.number}"
