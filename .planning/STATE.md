@@ -128,9 +128,10 @@ None yet.
 | 260506-klj | Defer torch/ctc_utils imports until after execute_remotely (agent safety) | 2026-05-06 | d9f5d7d | [260506-klj-train-ctc-failed-due-to-import-error-mak](./quick/260506-klj-train-ctc-failed-due-to-import-error-mak/) |
 | 260507-oa8 | Fix ClearML dataset upload bug (dataset_path kwarg + use_current_task conditional) and add roundtrip integration test | 2026-05-07 | 8aaedbb | [260507-oa8-generate-a-test-dataset-with-the-desired](./quick/260507-oa8-generate-a-test-dataset-with-the-desired/) |
 | 260508-d3e | Docker infrastructure for ClearML GPU agent: GPU + CPU Dockerfiles, docker-compose, agent start script | 2026-05-08 | 1524cdc | [260508-d3e-resolve-training-import-failures-with-do](./quick/260508-d3e-resolve-training-import-failures-with-do/) |
+| 260508-hqp | Fix HPO sweep argparse error on ClearML agent: bypass parse_known_args in _objective with direct Namespace | 2026-05-08 | 714f9bf | [260508-hqp-fix-hpo-sweep-api-error-and-add-smoke-te](./quick/260508-hqp-fix-hpo-sweep-api-error-and-add-smoke-te/) |
 
 ## Session Continuity
 
-Last session: 2026-05-08T06:32:56Z
-Stopped at: Completed quick/260508-d3e-PLAN.md
+Last session: 2026-05-08T07:00:00Z
+Stopped at: Completed quick/260508-hqp-PLAN.md
 Resume file: None
