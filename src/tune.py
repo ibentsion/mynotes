@@ -55,6 +55,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output_dir", type=Path, default=Path("outputs"), help="Where to write best_params.json"
     )
     p.add_argument(
+        "--dataset_id", type=str, default=None,
+        help="ClearML dataset ID; resolves manifest on agent"
+    )
+    p.add_argument(
         "--min_labeled", type=int, default=100, help="Passed to train_ctc; matches its default"
     )
     p.add_argument(
@@ -115,14 +119,10 @@ def _make_pruning_callback(
 def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
     params = _suggest_params(trial)
 
-    train_args = _build_train_parser().parse_args(
-        [
-            "--manifest",
-            str(sweep_args.manifest),
-            "--min_labeled",
-            str(sweep_args.min_labeled),
-        ]
-    )
+    cli = ["--manifest", str(sweep_args.manifest), "--min_labeled", str(sweep_args.min_labeled)]
+    if sweep_args.dataset_id is not None:
+        cli += ["--dataset_id", sweep_args.dataset_id]
+    train_args = _build_train_parser().parse_args(cli)
     for k, v in params.items():
         setattr(train_args, k, v)
     train_args.output_dir = sweep_args.output_dir / f"trial_{trial.number}"
@@ -174,14 +174,21 @@ def _write_best_params(study: optuna.Study, output_dir: Path) -> Path:
 def main() -> int:
     args = _build_parser().parse_args()
 
-    if not args.manifest.exists():
-        print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-        return 2
-
     orch_task = init_task("handwriting-hebrew-ocr", "hpo_sweep", tags=["phase-5"])
     orch_task.connect(vars(args), name="sweep_config")
     if args.enqueue:
         orch_task.execute_remotely(queue_name=args.queue_name)
+
+    # Resolve manifest from ClearML dataset when not available locally (agent path)
+    if args.dataset_id is not None and not args.manifest.exists():
+        from clearml import Dataset  # noqa: PLC0415
+
+        local_root = Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy())
+        args.manifest = local_root / "manifest.csv"
+
+    if not args.manifest.exists():
+        print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
+        return 2
 
     pruner = optuna.pruners.MedianPruner(
         n_startup_trials=args.n_startup_trials,

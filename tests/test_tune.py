@@ -101,6 +101,7 @@ def test_objective_pruning_callback_raises_trial_pruned():
     sweep_args = MagicMock()
     sweep_args.manifest = Path("data/manifest.csv")
     sweep_args.min_labeled = 100
+    sweep_args.dataset_id = None
     sweep_args.output_dir = Path("/tmp/test_outputs_prune")
     trial = MagicMock(spec=optuna.Trial)
     trial.number = 0
@@ -130,6 +131,7 @@ def test_objective_closes_trial_task_on_failure():
     sweep_args = MagicMock()
     sweep_args.manifest = Path("data/manifest.csv")
     sweep_args.min_labeled = 100
+    sweep_args.dataset_id = None
     sweep_args.output_dir = Path("/tmp/test_outputs_fail")
     trial = MagicMock(spec=optuna.Trial)
     trial.number = 0
@@ -180,6 +182,7 @@ def test_per_trial_task_tagged_phase_5_and_hpo_trial():
     sweep_args = MagicMock()
     sweep_args.manifest = Path("data/manifest.csv")
     sweep_args.min_labeled = 100
+    sweep_args.dataset_id = None
     sweep_args.output_dir = Path("/tmp/test_outputs_tags")
     trial = MagicMock(spec=optuna.Trial)
     trial.number = 3
