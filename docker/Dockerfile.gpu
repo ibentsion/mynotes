@@ -28,7 +28,7 @@ RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.13
 
 # Pre-install all project deps (GPU torch from cu128 index)
 COPY requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --ignore-installed -r /tmp/requirements.txt
 
 # Install clearml-agent so the container can act as an agent executor
 RUN pip install --no-cache-dir clearml-agent
