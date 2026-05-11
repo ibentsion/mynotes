@@ -392,7 +392,14 @@ def main() -> int:
         tags.append("phase-5")
     task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
 
-    # Resolve manifest from dataset when not available locally (remote agent path)
+    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
+    task.connect(vars(args), name="hyperparams")
+
+    if args.enqueue:
+        task.execute_remotely(queue_name=args.queue_name)
+        # local process exits here via os._exit(); code below only runs on agent
+
+    # Resolve manifest from dataset when not available locally (agent path)
     if args.dataset_id is not None and not args.manifest.exists():
         from clearml import Dataset  # noqa: PLC0415
 
@@ -419,14 +426,6 @@ def main() -> int:
         return 4
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
-    task.connect(vars(args), name="hyperparams")
-
-    if args.enqueue:
-        task.execute_remotely(queue_name=args.queue_name)
-        # local process exits here via os._exit(); on agent this is a no-op,
-        # falls through to run_training() below
 
     try:
         best_val_cer = run_training(args)
