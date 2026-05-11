@@ -403,6 +403,19 @@ def test_crop_dataset_augmented_copy_differs(tmp_path: Path):
     assert not torch.equal(clean, augmented)
 
 
+def test_crop_dataset_augmentation_varies_across_epochs(tmp_path: Path):
+    """Same augmented index must produce different pixels on each access (per-epoch freshness)."""
+    img_path = _write_gray_png(tmp_path / "crop.png", 64, 128, value=128)
+    df = pd.DataFrame([{"crop_path": str(img_path), "label": "א",
+                        "page_path": str(img_path), "page_num": 1,
+                        "x": 0, "y": 0, "w": 128, "h": 64, "status": "labeled"}])
+    charset = ["א"]
+    ds = CropDataset(df, charset, augment=AugmentTransform(), aug_copies=1)
+    first, _ = ds[1]   # augmented copy
+    second, _ = ds[1]  # same index, second epoch
+    assert not torch.equal(first, second), "augmented copies must differ across epochs"
+
+
 def test_crop_dataset_augment_none_ignores_aug_copies(tmp_path: Path):
     df = _make_aug_df(tmp_path, n=4)
     charset = ["א"]

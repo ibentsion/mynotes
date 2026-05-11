@@ -161,10 +161,17 @@ class AugmentTransform:
         self.brightness_delta = brightness_delta
         self.noise_sigma = noise_sigma
 
-    def __call__(self, tensor: torch.Tensor, seed: int) -> torch.Tensor:
-        """Apply transforms to a (1, H, W) float32 tensor. Seeded for reproducibility."""
-        rng = torch.Generator()
-        rng.manual_seed(seed)
+    def __call__(self, tensor: torch.Tensor, seed: int | None = None) -> torch.Tensor:
+        """Apply transforms to a (1, H, W) float32 tensor.
+
+        seed=None (default): uses PyTorch global RNG — different result every call,
+        which is what training wants (fresh augmentation each epoch).
+        seed=int: deterministic output, useful for tests and reproducible debugging.
+        """
+        rng: torch.Generator | None = None
+        if seed is not None:
+            rng = torch.Generator()
+            rng.manual_seed(seed)
 
         # 1. Rotation via affine_grid (pure PyTorch — no torchvision)
         # torch.rand gives [0,1]; scale to [-max, max]
@@ -224,7 +231,7 @@ class CropDataset(Dataset):
         row = self._df.iloc[real_idx]
         image = load_crop(str(row["crop_path"]))
         if copy_idx > 0 and self._augment is not None:
-            image = self._augment(image, seed=index)  # deterministic per logical index
+            image = self._augment(image)  # fresh random transform every epoch
         label_ids = encode_label(str(row["label"]), self._charset)
         return image, label_ids
 
