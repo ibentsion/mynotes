@@ -111,6 +111,55 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _report_prob_heatmap(
+    logger: object,
+    probs_np,
+    charset: list[str],
+    gt: str,
+    pred: str,
+    epoch: int,
+    sample_idx: int,
+) -> None:
+    """Log CTC probability heatmap (T × top-N classes) to ClearML Debug Samples tab.
+
+    Rows are classes (top-30 by peak prob, blank always included and shown in red).
+    Columns are timesteps. Bright = high probability. Blank dominating all columns
+    is the visual signature of blank collapse.
+    """
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    labels = ["<blank>"] + list(charset)
+    max_by_class = probs_np.max(axis=0)
+    n_show = min(30, len(labels))
+    top_idx = sorted(range(len(labels)), key=lambda i: -max_by_class[i])[:n_show]
+    if 0 not in top_idx:
+        top_idx = [0] + top_idx[: n_show - 1]
+    top_idx = sorted(top_idx)
+
+    sub = probs_np[:, top_idx].T  # (n_show, T)
+    sub_labels = [labels[i] for i in top_idx]
+
+    fig, ax = plt.subplots(figsize=(max(8, sub.shape[1] // 3), max(4, len(sub_labels) // 2)))
+    im = ax.imshow(sub, aspect="auto", cmap="hot", vmin=0.0, vmax=1.0)
+    ax.set_yticks(range(len(sub_labels)))
+    ax.set_yticklabels(sub_labels, fontsize=7)
+    ax.set_xlabel("Timestep")
+    ax.set_title(f"sample_{sample_idx} epoch={epoch} | gt={gt!r} | pred={pred!r}", fontsize=9)
+    plt.colorbar(im, ax=ax, fraction=0.02, pad=0.02)
+    if "<blank>" in sub_labels:
+        ax.get_yticklabels()[sub_labels.index("<blank>")].set_color("red")
+    plt.tight_layout()
+    logger.report_matplotlib_figure(
+        title="prob_heatmap",
+        series=f"sample_{sample_idx}",
+        iteration=epoch,
+        figure=fig,
+        report_image=True,
+        report_interactive=False,
+    )
+    plt.close(fig)
+
+
 def run_training(
     args: argparse.Namespace,
     on_epoch_end: Callable[[int, float], None] | None = None,
@@ -127,6 +176,9 @@ def run_training(
     propagates and no further epochs run. The most recent best checkpoint (if any
     was saved earlier in the loop) remains on disk.
     """
+    import matplotlib  # noqa: PLC0415
+    matplotlib.use("Agg")
+    import numpy as np  # noqa: PLC0415
     import torch  # noqa: PLC0415
     from torch.utils.data import DataLoader  # noqa: PLC0415
 
@@ -139,7 +191,8 @@ def run_training(
         cer,
         crnn_collate,
         greedy_decode,
-        predict_single,
+        load_crop,
+        predict_single_with_probs,
         resolve_device,
         save_charset,
         split_units,
@@ -216,8 +269,13 @@ def run_training(
         rnn_hidden=args.rnn_hidden,
         num_layers=args.num_layers,
     ).to(device)
+    # Blank index 0 starts with a negative bias so the model doesn't immediately
+    # collapse to predicting all-blank. The optimizer can move this freely after
+    # the first few epochs once non-blank representations have formed.
+    model.fc.bias.data[0] = -2.0
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
+    ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
 
     best_val_cer = float("inf")
     checkpoint_path = args.output_dir / "checkpoint.pt"
@@ -225,14 +283,18 @@ def run_training(
     for epoch in range(args.epochs):
         # --- train ---
         model.train()
-        train_loss_sum, train_steps = 0.0, 0
+        train_loss_sum, train_steps, inf_count = 0.0, 0, 0
         for images, labels, input_lengths, target_lengths in train_loader:
             images = images.to(device)
             optimizer.zero_grad()
             logits = model(images)  # (T, N, C)
             log_probs = logits.log_softmax(2)  # Pitfall 4
             loss = ctc_loss(log_probs, labels, input_lengths, target_lengths)
+            with torch.no_grad():
+                per_sample = ctc_loss_per_sample(log_probs, labels, input_lengths, target_lengths)
+                inf_count += int(per_sample.isinf().sum().item())
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
             optimizer.step()
             train_loss_sum += loss.item()
             train_steps += 1
@@ -242,6 +304,7 @@ def run_training(
         model.eval()
         val_loss_sum, val_steps = 0.0, 0
         cer_total, cer_count = 0.0, 0
+        blank_frac_sum, empty_preds = 0.0, 0
         with torch.no_grad():
             for images, labels, input_lengths, target_lengths in val_loader:
                 images = images.to(device)
@@ -249,12 +312,15 @@ def run_training(
                 log_probs = logits.log_softmax(2)
                 val_loss_sum += ctc_loss(log_probs, labels, input_lengths, target_lengths).item()
                 val_steps += 1
+                blank_frac_sum += (logits.argmax(dim=2) == 0).float().mean().item()
                 # Per-sample CER
                 offset = 0
                 for n in range(log_probs.size(1)):
                     sample_log_probs = log_probs[:, n, :]  # (T, C)
                     pred_indices = greedy_decode(sample_log_probs)  # list[int]
                     pred_text = "".join(charset[i - 1] for i in pred_indices)
+                    if not pred_text:
+                        empty_preds += 1
                     tgt_len = int(target_lengths[n].item())
                     tgt_indices = labels[offset : offset + tgt_len].tolist()
                     tgt_text = "".join(charset[i - 1] for i in tgt_indices)
@@ -263,25 +329,32 @@ def run_training(
                     cer_count += 1
         val_loss = val_loss_sum / max(val_steps, 1)
         val_cer = cer_total / max(cer_count, 1)
+        blank_frac = blank_frac_sum / max(val_steps, 1)
+        empty_frac = empty_preds / max(cer_count, 1)
 
         # TRAN-08: report scalars
         logger.report_scalar(title="loss", series="train", iteration=epoch, value=train_loss)
         logger.report_scalar(title="loss", series="val", iteration=epoch, value=val_loss)
         logger.report_scalar(title="cer", series="val", iteration=epoch, value=val_cer)
+        logger.report_scalar(title="blank_frac", series="val", iteration=epoch, value=blank_frac)
+        logger.report_scalar(title="empty_frac", series="val", iteration=epoch, value=empty_frac)
+        logger.report_scalar(title="inf_loss_count", series="train", iteration=epoch, value=inf_count)
 
         with torch.no_grad():
-            lines = [f"=== debug samples epoch={epoch} ==="]
             for i, (crop_path, gt) in enumerate(debug_samples):
-                pred = predict_single(model, charset, device, crop_path)
-                lines.append(f"[{i}] {crop_path} | gt={gt} | pred={pred}")
-            text_block = "\n".join(lines)
-        logger.report_text(
-            title="debug_samples",
-            series="val",
-            iteration=epoch,
-            print_console=False,
-            msg=text_block,
-        )
+                pred, probs = predict_single_with_probs(model, charset, device, crop_path)
+                print(f"[{i}] gt={gt!r} pred={pred!r}")
+                raw = load_crop(crop_path).squeeze(0).numpy()  # (H, W) float [0, 1]
+                crop_rgb = (np.stack([raw, raw, raw], axis=2) * 255).astype(np.uint8)
+                logger.report_image(
+                    title="debug_samples",
+                    series=f"sample_{i}",
+                    iteration=epoch,
+                    image=crop_rgb,
+                )
+                _report_prob_heatmap(
+                    logger, probs.cpu().numpy(), charset, gt, pred, epoch, i
+                )
 
         if val_cer < best_val_cer:
             best_val_cer = val_cer
@@ -289,7 +362,8 @@ def run_training(
 
         print(
             f"epoch={epoch} train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
-            f"val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f}"
+            f"val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f} "
+            f"blank_frac={blank_frac:.3f} empty_frac={empty_frac:.3f} inf_loss={inf_count}"
         )
 
         if on_epoch_end is not None:

@@ -344,3 +344,29 @@ def predict_single(
     log_probs = logits.log_softmax(2)
     pred_indices = greedy_decode(log_probs[:, 0, :])
     return "".join(charset[i - 1] for i in pred_indices)
+
+
+def predict_single_with_probs(
+    model: CRNN,
+    charset: list[str],
+    device: torch.device,
+    crop_path: str,
+) -> tuple[str, torch.Tensor]:
+    """Like predict_single but also returns per-timestep class probabilities.
+
+    Returns (pred_text, probs) where probs is (T, C) float32 — softmax of logits.
+    Caller manages model.eval() + torch.no_grad().
+    """
+    image = load_crop(crop_path).unsqueeze(0).to(device)  # (1, 1, 64, W)
+    w = image.size(3)
+    padded_w = math.ceil(w / 4) * 4
+    if padded_w != w:
+        pad = torch.zeros(1, 1, image.size(2), padded_w, device=device)
+        pad[:, :, :, :w] = image
+        image = pad
+    logits = model(image)  # (T, 1, C)
+    log_probs = logits.log_softmax(2)
+    probs = log_probs[:, 0, :].exp()  # (T, C)
+    pred_indices = greedy_decode(log_probs[:, 0, :])
+    pred_text = "".join(charset[i - 1] for i in pred_indices)
+    return pred_text, probs
