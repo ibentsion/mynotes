@@ -197,6 +197,7 @@ def main() -> int:
     orch_task = init_task("handwriting-hebrew-ocr", "hpo_sweep", tags=["phase-5"])
     orch_task.connect(vars(args), name="sweep_config")
     if args.enqueue:
+        orch_task.add_requirements("requirements.txt")
         orch_task.execute_remotely(queue_name=args.queue_name)
 
     # Resolve manifest from ClearML dataset when not available locally (agent path)
