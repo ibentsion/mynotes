@@ -9,3 +9,4 @@ scikit-learn>=1.5
 torch==2.11.0+cu128
 openai>=1.0
 optuna==4.8.0
+matplotlib>=3.9
