@@ -421,3 +421,30 @@ def test_crop_dataset_augment_none_ignores_aug_copies(tmp_path: Path):
     charset = ["א"]
     ds = CropDataset(df, charset, augment=None, aug_copies=5)
     assert len(ds) == 4  # copies ignored when augment is None
+
+
+# ---------------------------------------------------------------------------
+# compute_char_saliency (Grad-CAM on CNN feature map)
+# ---------------------------------------------------------------------------
+
+
+def test_compute_char_saliency_shape_and_range(tmp_path: Path):
+    import cv2
+    import numpy as np
+    import torch
+    from src.ctc_utils import CRNN, compute_char_saliency, resolve_device
+
+    crop = np.random.default_rng(0).integers(0, 255, size=(64, 128), dtype=np.uint8)
+    crop_path = tmp_path / "crop.png"
+    cv2.imwrite(str(crop_path), crop)
+
+    device = resolve_device()
+    model = CRNN(num_classes=5, rnn_hidden=16, num_layers=1).to(device)
+    charset = ["A", "B", "C", "D"]  # 4 chars + blank = 5 classes
+
+    crop_hw, pred, sal = compute_char_saliency(model, charset, device, str(crop_path))
+
+    assert crop_hw.shape == sal.shape
+    assert crop_hw.shape[0] == 64
+    assert isinstance(pred, str)
+    assert 0.0 <= float(sal.min()) and float(sal.max()) <= 1.0
