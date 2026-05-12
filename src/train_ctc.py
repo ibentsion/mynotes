@@ -194,6 +194,40 @@ def _report_annotated_crop(
     plt.close(fig)
 
 
+def _report_saliency_panel(
+    logger: Any,
+    model: Any,
+    charset: list[str],
+    device: Any,
+    picks: list[tuple[str, str, float]],
+    epoch: int,
+) -> None:
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    from src.ctc_utils import compute_char_saliency  # noqa: PLC0415
+
+    fig, axes = plt.subplots(len(picks), 1, figsize=(8, 2.2 * len(picks)))
+    if len(picks) == 1:
+        axes = [axes]
+    for ax, (crop_path, gt, sample_cer) in zip(axes, picks, strict=True):
+        crop_hw, pred, sal = compute_char_saliency(model, charset, device, crop_path)
+        ax.imshow(crop_hw, cmap="gray", aspect="auto", vmin=0.0, vmax=1.0)
+        ax.imshow(sal, cmap="jet", aspect="auto", alpha=0.5, vmin=0.0, vmax=1.0)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_title(f"cer={sample_cer:.2f}  gt={gt!r}  pred={pred!r}", fontsize=9)
+    plt.tight_layout()
+    logger.report_matplotlib_figure(
+        title="saliency_chars",
+        series="percentiles",
+        iteration=epoch,
+        figure=fig,
+        report_image=True,
+        report_interactive=False,
+    )
+    plt.close(fig)
+
+
 def run_training(
     args: argparse.Namespace,
     on_epoch_end: Callable[[int, float], None] | None = None,
@@ -338,6 +372,8 @@ def run_training(
         val_loss_sum, val_steps = 0.0, 0
         cer_total, cer_count = 0.0, 0
         blank_frac_sum, empty_preds = 0.0, 0
+        per_sample_cer: list[tuple[str, str, str, float]] = []
+        dataset_idx = 0
         with torch.no_grad():
             for images, labels, input_lengths, target_lengths in val_loader:
                 images = images.to(device)
@@ -358,8 +394,12 @@ def run_training(
                     tgt_indices = labels[offset : offset + tgt_len].tolist()
                     tgt_text = "".join(charset[i - 1] for i in tgt_indices)
                     offset += tgt_len
-                    cer_total += cer(tgt_text, pred_text)
+                    sample_cer = cer(tgt_text, pred_text)
+                    cer_total += sample_cer
                     cer_count += 1
+                    crop_path_n = str(val_df.iloc[dataset_idx + n]["crop_path"])
+                    per_sample_cer.append((crop_path_n, tgt_text, pred_text, sample_cer))
+                dataset_idx += images.size(0)
         val_loss = val_loss_sum / max(val_steps, 1)
         val_cer = cer_total / max(cer_count, 1)
         blank_frac = blank_frac_sum / max(val_steps, 1)
@@ -384,6 +424,16 @@ def run_training(
                 _report_prob_heatmap(
                     logger, probs.cpu().numpy(), charset, gt, pred, epoch, i
                 )
+
+        if per_sample_cer:
+            sorted_by_cer = sorted(per_sample_cer, key=lambda r: r[3])
+            n = len(sorted_by_cer)
+            pct_indices = [0, n // 4, n // 2, (3 * n) // 4, n - 1]
+            picks = [
+                (sorted_by_cer[idx][0], sorted_by_cer[idx][1], sorted_by_cer[idx][3])
+                for idx in pct_indices
+            ]
+            _report_saliency_panel(logger, model, charset, device, picks, epoch)
 
         if val_cer < best_val_cer:
             best_val_cer = val_cer

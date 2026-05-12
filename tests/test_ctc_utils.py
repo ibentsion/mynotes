@@ -431,7 +431,7 @@ def test_crop_dataset_augment_none_ignores_aug_copies(tmp_path: Path):
 def test_compute_char_saliency_shape_and_range(tmp_path: Path):
     import cv2
     import numpy as np
-    import torch
+
     from src.ctc_utils import CRNN, compute_char_saliency, resolve_device
 
     crop = np.random.default_rng(0).integers(0, 255, size=(64, 128), dtype=np.uint8)
@@ -447,4 +447,4 @@ def test_compute_char_saliency_shape_and_range(tmp_path: Path):
     assert crop_hw.shape == sal.shape
     assert crop_hw.shape[0] == 64
     assert isinstance(pred, str)
-    assert 0.0 <= float(sal.min()) and float(sal.max()) <= 1.0
+    assert float(sal.min()) >= 0.0 and float(sal.max()) <= 1.0

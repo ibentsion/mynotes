@@ -2,6 +2,7 @@ import json
 import math
 import unicodedata
 from pathlib import Path
+from typing import Any
 
 import cv2
 import pandas as pd
@@ -181,7 +182,7 @@ class AugmentTransform:
         theta = torch.tensor(
             [[cos_a, -sin_a, 0.0], [sin_a, cos_a, 0.0]], dtype=torch.float32
         ).unsqueeze(0)
-        grid = F.affine_grid(theta, tensor.unsqueeze(0).shape, align_corners=False)
+        grid = F.affine_grid(theta, list(tensor.unsqueeze(0).shape), align_corners=False)
         tensor = F.grid_sample(
             tensor.unsqueeze(0), grid, align_corners=False, padding_mode="border"
         ).squeeze(0)
@@ -377,3 +378,90 @@ def predict_single_with_probs(
     pred_indices = greedy_decode(log_probs[:, 0, :])
     pred_text = "".join(charset[i - 1] for i in pred_indices)
     return pred_text, probs
+
+
+def _pad_to_multiple_of_4(image: torch.Tensor) -> torch.Tensor:
+    """Pad image tensor (1, 1, H, W) width to next multiple of 4."""
+    w = image.size(3)
+    padded_w = math.ceil(w / 4) * 4
+    if padded_w == w:
+        return image
+    pad = torch.zeros(1, 1, image.size(2), padded_w, device=image.device)
+    pad[:, :, :, :w] = image
+    return pad
+
+
+def _register_gradcam_hooks(
+    target_layer: nn.Conv2d,
+) -> tuple[list[torch.Tensor], list[torch.Tensor], Any, Any]:
+    # Register forward + backward hooks; returns (activations, gradients, h_fwd, h_bwd).
+    activations: list[torch.Tensor] = []
+    gradients: list[torch.Tensor] = []
+    h_fwd = target_layer.register_forward_hook(lambda _m, _i, o: activations.append(o))
+    h_bwd = target_layer.register_full_backward_hook(
+        lambda _m, _gi, go: gradients.append(go[0])
+    )
+    return activations, gradients, h_fwd, h_bwd
+
+
+def compute_char_saliency(
+    model: CRNN,
+    charset: list[str],
+    device: torch.device,
+    crop_path: str,
+) -> tuple[Any, str, Any]:
+    """Grad-CAM on the last CNN conv block for non-blank predicted timesteps.
+
+    Returns (crop_hw, pred_text, saliency_hw), all H x W with saliency in [0, 1].
+    Hooks the last Conv2d in model.cnn. Caller does NOT need no_grad — this
+    function manages eval mode + autograd internally.
+    """
+    import numpy as np  # noqa: PLC0415
+
+    image = _pad_to_multiple_of_4(load_crop(crop_path).unsqueeze(0).to(device))
+
+    was_training = model.training
+    model.eval()
+
+    target_layer = next(
+        (m for m in reversed(list(model.cnn)) if isinstance(m, nn.Conv2d)), None
+    )
+    if target_layer is None:
+        raise RuntimeError("CRNN.cnn has no Conv2d layer")
+
+    activations, gradients, h_fwd, h_bwd = _register_gradcam_hooks(target_layer)
+    try:
+        for p in model.parameters():
+            p.requires_grad_(True)
+        logits = model(image)  # (T, 1, C)
+        log_probs = logits.log_softmax(2)
+        pred_indices = greedy_decode(log_probs[:, 0, :])
+        pred_text = "".join(charset[i - 1] for i in pred_indices)
+
+        argmax_per_t = log_probs[:, 0, :].argmax(dim=1)
+        non_blank_mask = argmax_per_t != 0
+        if non_blank_mask.any():
+            gathered = log_probs[:, 0, :].gather(1, argmax_per_t.unsqueeze(1)).squeeze(1)
+            model.zero_grad(set_to_none=True)
+            gathered[non_blank_mask].sum().backward()
+
+        if activations and gradients:
+            act = activations[0]  # (1, C', H', W')
+            grad = gradients[0]
+            alpha = grad.mean(dim=(2, 3), keepdim=True)
+            cam = F.relu((alpha * act).sum(dim=1, keepdim=True))
+            cam = F.interpolate(cam, size=image.shape[-2:], mode="bilinear", align_corners=False)
+            sal = cam[0, 0].detach().cpu().numpy()
+            rng = float(sal.max()) - float(sal.min())
+            sal = (sal - float(sal.min())) / rng if rng > 1e-8 else np.zeros_like(sal)
+        else:
+            sal = np.zeros(image.shape[-2:], dtype=np.float32)
+    finally:
+        h_fwd.remove()
+        h_bwd.remove()
+        if was_training:
+            model.train()
+        model.zero_grad(set_to_none=True)
+
+    crop_hw = image[0, 0].detach().cpu().numpy()
+    return crop_hw, pred_text, sal.astype("float32")
