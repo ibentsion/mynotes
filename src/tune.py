@@ -21,7 +21,7 @@ import optuna
 import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — established pattern
 
-from src.clearml_utils import init_task, register_requirements
+from src.clearml_utils import init_task
 from src.train_ctc import run_training
 
 PARAM_KEYS = (
@@ -194,11 +194,10 @@ def _write_best_params(study: optuna.Study, output_dir: Path) -> Path:
 def main() -> int:
     args = _build_parser().parse_args()
 
-    if args.enqueue:
-        register_requirements()
     orch_task = init_task("handwriting-hebrew-ocr", "hpo_sweep", tags=["phase-5"])
     orch_task.connect(vars(args), name="sweep_config")
     if args.enqueue:
+        orch_task.add_requirements("requirements.txt")
         orch_task.execute_remotely(queue_name=args.queue_name)
 
     # Resolve manifest from ClearML dataset when not available locally (agent path)

@@ -4,19 +4,6 @@ import pandas as pd
 from clearml import Dataset, Task
 
 
-def register_requirements(path: str = "requirements.txt") -> None:
-    """Register task requirements from file, skipping pip option lines.
-
-    Must be called BEFORE Task.init() (i.e., before init_task()).
-    Filters lines starting with '-' (e.g. --extra-index-url) which
-    pkg_resources cannot parse.
-    """
-    for line in Path(path).read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith(("#", "-")):
-            Task.add_requirements(line)
-
-
 def init_task(
     project: str,
     task_name: str,

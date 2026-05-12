@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
 
-from src.clearml_utils import init_task, register_requirements, remap_dataset_paths, upload_file_artifact
+from src.clearml_utils import init_task, remap_dataset_paths, upload_file_artifact
 
 DEBUG_SAMPLES = 5
 
@@ -390,14 +390,13 @@ def main() -> int:
     tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
     if args.params is not None:
         tags.append("phase-5")
-    if args.enqueue:
-        register_requirements()
     task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
 
     # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
     task.connect(vars(args), name="hyperparams")
 
     if args.enqueue:
+        task.add_requirements("requirements.txt")
         task.execute_remotely(queue_name=args.queue_name)
         # local process exits here via os._exit(); code below only runs on agent
 
