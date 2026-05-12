@@ -5,6 +5,7 @@ import json
 import sys
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
@@ -112,8 +113,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _report_prob_heatmap(
-    logger: object,
-    probs_np,
+    logger: Any,
+    probs_np: Any,
     charset: list[str],
     gt: str,
     pred: str,
@@ -160,6 +161,39 @@ def _report_prob_heatmap(
     plt.close(fig)
 
 
+def _report_annotated_crop(
+    logger: Any,
+    crop_hw: Any,
+    gt: str,
+    pred: str,
+    epoch: int,
+    sample_idx: int,
+    series_prefix: str = "sample",
+) -> None:
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    fig, ax = plt.subplots(figsize=(max(4, crop_hw.shape[1] / 40), 2.0))
+    ax.imshow(crop_hw, cmap="gray", aspect="auto", vmin=0.0, vmax=1.0)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    color = "green" if gt == pred else "red"
+    ax.set_title(
+        f"epoch={epoch}  gt={gt!r}  pred={pred!r}",
+        fontsize=10,
+        color=color,
+    )
+    plt.tight_layout()
+    logger.report_matplotlib_figure(
+        title="debug_samples",
+        series=f"{series_prefix}_{sample_idx}",
+        iteration=epoch,
+        figure=fig,
+        report_image=True,
+        report_interactive=False,
+    )
+    plt.close(fig)
+
+
 def run_training(
     args: argparse.Namespace,
     on_epoch_end: Callable[[int, float], None] | None = None,
@@ -178,7 +212,6 @@ def run_training(
     """
     import matplotlib  # noqa: PLC0415
     matplotlib.use("Agg")
-    import numpy as np  # noqa: PLC0415
     import torch  # noqa: PLC0415
     from torch.utils.data import DataLoader  # noqa: PLC0415
 
@@ -338,20 +371,16 @@ def run_training(
         logger.report_scalar(title="cer", series="val", iteration=epoch, value=val_cer)
         logger.report_scalar(title="blank_frac", series="val", iteration=epoch, value=blank_frac)
         logger.report_scalar(title="empty_frac", series="val", iteration=epoch, value=empty_frac)
-        logger.report_scalar(title="inf_loss_count", series="train", iteration=epoch, value=inf_count)
+        logger.report_scalar(
+            title="inf_loss_count", series="train", iteration=epoch, value=inf_count
+        )
 
         with torch.no_grad():
             for i, (crop_path, gt) in enumerate(debug_samples):
                 pred, probs = predict_single_with_probs(model, charset, device, crop_path)
                 print(f"[{i}] gt={gt!r} pred={pred!r}")
                 raw = load_crop(crop_path).squeeze(0).numpy()  # (H, W) float [0, 1]
-                crop_rgb = (np.stack([raw, raw, raw], axis=2) * 255).astype(np.uint8)
-                logger.report_image(
-                    title="debug_samples",
-                    series=f"sample_{i}",
-                    iteration=epoch,
-                    image=crop_rgb,
-                )
+                _report_annotated_crop(logger, raw, gt, pred, epoch, i)
                 _report_prob_heatmap(
                     logger, probs.cpu().numpy(), charset, gt, pred, epoch, i
                 )
