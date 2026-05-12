@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed 05-03-PLAN.md
-last_updated: "2026-05-07T11:55:26.655Z"
+stopped_at: Completed quick/260512-uk2-PLAN.md
+last_updated: "2026-05-12T19:14:49.131Z"
 last_activity: 2026-05-07
 progress:
   total_phases: 5
@@ -103,6 +103,7 @@ Recent decisions affecting current work:
 - [Phase 05-hyperparameter-tuning-system]: _apply_params_file mutates args BEFORE task.connect() so JSON-loaded hyperparams are tracked in ClearML (D-10)
 - [Phase 05]: tune.py uses _init_trial_task + _make_pruning_callback helpers to keep all functions under 100-line limit (CLAUDE.md constraint)
 - [Phase 05]: enqueue path dispatches entire sweep to GPU agent via execute_remotely on orchestrator task — Optuna pruning works normally in this model (Open Question 1 resolution)
+- [Phase quick/260512-uk2]: compute_char_saliency manages eval mode + autograd internally; saliency panel called outside no_grad block
 
 ### Pending Todos
 
@@ -129,9 +130,10 @@ None yet.
 | 260507-oa8 | Fix ClearML dataset upload bug (dataset_path kwarg + use_current_task conditional) and add roundtrip integration test | 2026-05-07 | 8aaedbb | [260507-oa8-generate-a-test-dataset-with-the-desired](./quick/260507-oa8-generate-a-test-dataset-with-the-desired/) |
 | 260508-d3e | Docker infrastructure for ClearML GPU agent: GPU + CPU Dockerfiles, docker-compose, agent start script | 2026-05-08 | 1524cdc | [260508-d3e-resolve-training-import-failures-with-do](./quick/260508-d3e-resolve-training-import-failures-with-do/) |
 | 260508-hqp | Fix HPO sweep argparse error on ClearML agent: bypass parse_known_args in _objective with direct Namespace | 2026-05-08 | 714f9bf | [260508-hqp-fix-hpo-sweep-api-error-and-add-smoke-te](./quick/260508-hqp-fix-hpo-sweep-api-error-and-add-smoke-te/) |
+| 260512-uk2 | Diagnose CPU training run (overfitting analysis) and add annotated debug samples + Grad-CAM saliency panel | 2026-05-12 | 98aa375 | [260512-uk2-analyze-training-results-and-improve-deb](./quick/260512-uk2-analyze-training-results-and-improve-deb/) |
 
 ## Session Continuity
 
-Last session: 2026-05-08T07:00:00Z
-Stopped at: Completed quick/260508-hqp-PLAN.md
+Last session: 2026-05-12T19:14:40.123Z
+Stopped at: Completed quick/260512-uk2-PLAN.md
 Resume file: None
