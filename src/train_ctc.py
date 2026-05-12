@@ -396,7 +396,6 @@ def main() -> int:
     task.connect(vars(args), name="hyperparams")
 
     if args.enqueue:
-        task.add_requirements("requirements.txt")
         task.execute_remotely(queue_name=args.queue_name)
         # local process exits here via os._exit(); code below only runs on agent
 
