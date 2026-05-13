@@ -421,7 +421,8 @@ def compute_char_saliency(
     image = _pad_to_multiple_of_4(load_crop(crop_path).unsqueeze(0).to(device))
 
     was_training = model.training
-    model.eval()
+    # cuDNN RNN backward requires training mode; eval() would break the backward pass.
+    model.train()
 
     target_layer = next(
         (m for m in reversed(list(model.cnn)) if isinstance(m, nn.Conv2d)), None
@@ -459,8 +460,8 @@ def compute_char_saliency(
     finally:
         h_fwd.remove()
         h_bwd.remove()
-        if was_training:
-            model.train()
+        if not was_training:
+            model.eval()
         model.zero_grad(set_to_none=True)
 
     crop_hw = image[0, 0].detach().cpu().numpy()
