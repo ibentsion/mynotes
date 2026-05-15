@@ -19,6 +19,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Data Pipeline** - PDF ingestion, region detection, heuristic flagging, and ClearML infrastructure (completed 2026-04-21)
 - [ ] **Phase 2: Review & Annotation** - Streamlit review app, labeling workflow, and ClearML sync
 - [ ] **Phase 3: Training & Evaluation** - CRNN+CTC model training and CER evaluation
+- [ ] **Phase 6: Synthetic Generation** - generate_synthetic CLI, corpus assembly, and coverage validation
+- [ ] **Phase 7: Augmentation & Two-Stage Training** - Elastic augmentation and synthetic pre-training in train_ctc.py
 
 ## Phase Details
 
@@ -63,6 +65,28 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 03-02-PLAN.md — Implement src/train_ctc.py CLI: filter labeled crops, build charset, half-page train/val split, CRNN+CTC training on CPU, save best checkpoint+charset, log per-epoch scalars and artifacts to ClearML task train_baseline_ctc
 - [x] 03-03-PLAN.md — Implement src/evaluate.py CLI: load checkpoint+charset, reproduce val split, run greedy CTC decode, write eval_report.csv with image_path/target/prediction/is_exact, log final CER + exact_match_rate to ClearML task evaluate_model
 
+### Phase 6: Synthetic Generation
+**Goal**: A CLI tool generates Hebrew text crop images that are immediately consumable by the training pipeline, with coverage validation ensuring rare characters are represented
+**Depends on**: Phase 3
+**Requirements**: SYN-01, SYN-02, SYN-03, SYN-04
+**Success Criteria** (what must be TRUE):
+  1. `generate_synthetic --count N` produces N crop images and a `manifest.csv` with `crop_path`, `label`, `status="labeled"` columns that match the real data schema exactly
+  2. CropDataset loads the synthetic manifest without any code changes — crops are grayscale, 64px height, variable width
+  3. Text corpus is drawn from words extracted from existing labeled crops; rare characters appear more frequently than common ones due to weighted sampling
+  4. Running the CLI prints a per-character count report and exits non-zero with a gap summary when any character falls below `--min_char_count`
+**Plans**: TBD
+
+### Phase 7: Augmentation & Two-Stage Training
+**Goal**: Training gains elastic deformation augmentation and the ability to pre-train on synthetic data before fine-tuning on real labeled crops
+**Depends on**: Phase 6
+**Requirements**: AUG-01, AUG-02, TRAIN-01, TRAIN-02
+**Success Criteria** (what must be TRUE):
+  1. Training with `--elastic_alpha > 0` applies elastic deformation to training crops, visible in ClearML debug samples
+  2. Running `train_ctc.py --pretrain_manifest synthetic.csv --pretrain_epochs 10` executes a synthetic pre-training loop before the real-data fine-tuning loop
+  3. Pre-training val loss is computed against a held-out fraction of the synthetic set; fine-tuning val loss uses the real val set — both reported separately in ClearML
+  4. `--pretrain_lr` sets the learning rate for pre-training independently of `--lr` used during fine-tuning
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:**
@@ -100,3 +124,12 @@ Plans:
 - [x] 05-01-PLAN.md — Parameterize CRNN (rnn_hidden, num_layers) in ctc_utils.py; add optuna 4.8.0 dependency
 - [x] 05-02-PLAN.md — Extend train_ctc.py with --rnn_hidden, --num_layers, --params CLI flags; extract reusable run_training(args, on_epoch_end=...) helper for in-process tuner calls
 - [ ] 05-03-PLAN.md — Implement src/tune.py CLI: Optuna sweep with MedianPruner, per-trial ClearML task, outputs/best_params.json, hpo_sweep orchestrator report; add tune-hpo console script
+
+## v1.1 Progress
+
+**Milestone:** v1.1 — Synthetic Data
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 6. Synthetic Generation | 0/? | Not started | - |
+| 7. Augmentation & Two-Stage Training | 0/? | Not started | - |

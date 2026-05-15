@@ -151,12 +151,22 @@
 | EVAL-02 | Phase 3 | Complete |
 | EVAL-03 | Phase 3 | Complete |
 | EVAL-04 | Phase 3 | Complete |
+| SYN-01 | Phase 6 | Pending |
+| SYN-02 | Phase 6 | Pending |
+| SYN-03 | Phase 6 | Pending |
+| SYN-04 | Phase 6 | Pending |
+| AUG-01 | Phase 7 | Pending |
+| AUG-02 | Phase 7 | Pending |
+| TRAIN-01 | Phase 7 | Pending |
+| TRAIN-02 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 37 total
 - Mapped to phases: 37
+- v1.1 requirements: 8 total
+- Mapped to phases: 8
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-04-21*
-*Last updated: 2026-04-21 after roadmap creation*
+*Last updated: 2026-05-15 after v1.1 roadmap creation (phases 6-7)*
