@@ -289,7 +289,7 @@ def _report_char_distribution(
         series="labeled_set",
         iteration=0,
         figure=fig,
-        report_image=True,
+        report_image=False,
         report_interactive=False,
     )
     plt.close(fig)
