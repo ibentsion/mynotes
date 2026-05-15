@@ -132,9 +132,10 @@ None yet.
 | 260508-hqp | Fix HPO sweep argparse error on ClearML agent: bypass parse_known_args in _objective with direct Namespace | 2026-05-08 | 714f9bf | [260508-hqp-fix-hpo-sweep-api-error-and-add-smoke-te](./quick/260508-hqp-fix-hpo-sweep-api-error-and-add-smoke-te/) |
 | 260512-uk2 | Diagnose CPU training run (overfitting analysis) and add annotated debug samples + Grad-CAM saliency panel | 2026-05-12 | 98aa375 | [260512-uk2-analyze-training-results-and-improve-deb](./quick/260512-uk2-analyze-training-results-and-improve-deb/) |
 | 260515-m9x | Training stability improvements from tune run analysis: AdamW, LR schedule, early stopping, CTC padding fix, configurable blank bias, char distribution viz | 2026-05-15 | 060bb06 | [260515-m9x-training-stability-char-dist-viz](./quick/260515-m9x-training-stability-char-dist-viz/) |
+| 260515-hpo | Fix HPO tune config: patience=0 (disable early stop during HPO), max LR 3e-3→1e-3, ReduceLROnPlateau patience 3→6 | 2026-05-15 | ba8dd2c | [260515-hpo-tune-fix-patience-lr](./quick/260515-hpo-tune-fix-patience-lr/) |
 
 ## Session Continuity
 
 Last session: 2026-05-15
-Stopped at: Completed quick/260515-m9x-PLAN.md
+Stopped at: Completed quick/260515-hpo-tune-fix-patience-lr-PLAN.md
 Resume file: None
