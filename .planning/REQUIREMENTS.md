@@ -63,6 +63,25 @@
 - [x] **CLML-04**: All scripts save git commit hash and log package versions for reproducibility
 - [ ] **CLML-05**: All scripts accept explicit CLI arguments that are tracked in ClearML
 
+## v1.1 Requirements — Synthetic Data
+
+### Synthetic Generation
+
+- [ ] **SYN-01**: `generate_synthetic` CLI renders Hebrew text crops via TRDG with configurable `--count`, `--output_dir`, `--fonts_dir`, `--wordlist`; writes `manifest.csv` with same schema as real data (`crop_path`, `label`, `status="labeled"`)
+- [ ] **SYN-02**: Synthetic crops match real crop format — grayscale, 64px height, variable width — readable by `CropDataset` without any code changes
+- [ ] **SYN-03**: Text corpus assembled from words/substrings extracted from existing labeled crops plus optional `--wordlist`; rare characters get proportionally more rendering weight
+- [ ] **SYN-04**: Coverage validation reports characters with fewer than `--min_char_count` examples before and after generation; exits non-zero if gaps remain
+
+### Augmentation
+
+- [ ] **AUG-01**: `AugmentTransform` gains elastic deformation (`ElasticTransform` + `GridDistortion` via `albumentations`) applied after existing affine transforms
+- [ ] **AUG-02**: Elastic deformation strength configurable via `--elastic_alpha` (default `0` = disabled) and `--elastic_sigma` flags in `train_ctc.py`
+
+### Two-Stage Training
+
+- [ ] **TRAIN-01**: `train_ctc.py` adds `--pretrain_manifest` + `--pretrain_epochs` (default `0` = skip); when set, pre-trains on synthetic data before the real-data training loop
+- [ ] **TRAIN-02**: Pre-training validates on a held-out fraction of the synthetic set; fine-tuning uses the real val set; `--pretrain_lr` controls pre-train learning rate separately from fine-tune LR
+
 ## v2 Requirements
 
 ### Active Learning
