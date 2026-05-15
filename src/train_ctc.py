@@ -423,7 +423,7 @@ def run_training(
     model.fc.bias.data[0] = args.blank_bias_init
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6
+        optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6
     )
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
     ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
