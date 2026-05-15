@@ -1,5 +1,18 @@
 # Hebrew Handwriting OCR Pipeline
 
+## Current Milestone: v1.1 Synthetic Data
+
+**Goal:** Generate synthetic Hebrew text crops with TRDG font rendering and extend the training pipeline with two-stage training (pre-train on synthetic → fine-tune on real) and elastic deformation augmentation.
+
+**Target features:**
+- TRDG-based `generate_synthetic` CLI: configurable count, fonts, distortions; manifest-compatible output
+- Hebrew text corpus built from existing labels + wordlist with rare-character weighting
+- Character coverage validation (pre/post generation gap report)
+- Elastic deformation (albumentations) added to AugmentTransform; configurable strength
+- `--pretrain_manifest` + `--pretrain_epochs` flags in train_ctc.py for two-stage training
+
+---
+
 ## What This Is
 
 A local Python MVP pipeline for personal Hebrew handwritten OCR, built around a human-in-the-loop workflow. It converts scanned PDF pages into region crops, flags suspicious segmentations for manual review, trains a CRNN+CTC baseline model on minimal labeled data, and logs all data versions, metrics, and artifacts to ClearML.
@@ -45,7 +58,7 @@ Validated in Phase 5: Optuna HPO sweep (tune.py), per-trial ClearML tasks, Media
 
 ## Constraints
 
-- **Runtime**: Python 3.13, CPU-only for MVP — model must train without CUDA
+- **Runtime**: Python 3.13; GPU training via ClearML agent (RTX 5060, WSL2) is primary — CPU still works but is not a design constraint
 - **Stack**: pdf2image + Poppler, OpenCV, PyTorch, Streamlit, ClearML — no additional heavy dependencies
 - **Data**: Personal Hebrew notes only; privacy-sensitive — stays local
 - **Reproducibility**: Git commit, package versions, and all configs stored in ClearML per run
@@ -82,4 +95,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-04 after Phase 4 completion — v1.0 milestone complete (all 4 phases)*
+*Last updated: 2026-05-15 — v1.1 Synthetic Data milestone started; GPU (RTX 5060 via WSL2) now primary training target*

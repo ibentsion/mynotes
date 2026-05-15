@@ -1,17 +1,17 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Completed quick/260512-uk2-PLAN.md
-last_updated: "2026-05-12T19:14:49.131Z"
-last_activity: 2026-05-07
+milestone: v1.1
+milestone_name: synthetic-data
+status: planning
+stopped_at: ~
+last_updated: "2026-05-15T00:00:00.000Z"
+last_activity: 2026-05-15
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 15
-  completed_plans: 15
-  percent: 5
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 ## Current Position
 
-Phase: 05
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-12 - Completed quick task 260512-uk2: analyze training results and improve debug samples in clearml with text labels and saliency maps
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-15 — Milestone v1.1 Synthetic Data started
 
-Progress: [█░░░░░░░░░] 5%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
