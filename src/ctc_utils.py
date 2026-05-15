@@ -130,7 +130,10 @@ def crnn_collate(
     images, labels = zip(*batch, strict=True)
     target_h = images[0].size(1)
     max_w = max(img.size(2) for img in images)
-    padded_w = math.ceil(max_w / 4) * 4  # Pitfall 1 fix: ensures input_lengths = padded_w // 4
+    max_label_len = max(len(lbl) for lbl in labels)
+    # CTC requires T >= label_len; enforce T >= label_len + 2 for numerical stability.
+    # Without this, crops narrower than (label_len+2)*4 pixels produce inf CTC loss.
+    padded_w = max(math.ceil(max_w / 4) * 4, (max_label_len + 2) * 4)
     padded = torch.zeros(len(images), 1, target_h, padded_w, dtype=torch.float32)
     for i, img in enumerate(images):
         padded[i, :, :, : img.size(2)] = img

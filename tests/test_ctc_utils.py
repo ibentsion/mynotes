@@ -448,3 +448,11 @@ def test_compute_char_saliency_shape_and_range(tmp_path: Path):
     assert crop_hw.shape[0] == 64
     assert isinstance(pred, str)
     assert float(sal.min()) >= 0.0 and float(sal.max()) <= 1.0
+
+def test_crnn_collate_ensures_t_geq_label_len_plus_two():
+    # narrow image (W=4 → T=1) with a 3-char label: without fix T < label_len → inf CTC loss
+    img = torch.zeros(1, 64, 4)
+    label = [1, 2, 3]  # len=3; needs T >= 5 → padded_w >= 20
+    padded, _, input_lengths, target_lengths = crnn_collate([(img, label)])
+    T = int(input_lengths[0].item())
+    assert int(target_lengths[0].item()) + 2 <= T
