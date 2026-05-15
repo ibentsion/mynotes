@@ -135,6 +135,7 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         enqueue=False,
         queue_name="gpu",
         dataset_id=sweep_args.dataset_id,
+        weight_decay=1e-4,
         # Populated from Optuna trial.suggest_*:
         lr=params["lr"],
         batch_size=params["batch_size"],

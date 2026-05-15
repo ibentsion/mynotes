@@ -97,6 +97,7 @@ def test_build_parser_has_documented_defaults():
     assert args.val_frac == pytest.approx(0.2)
     assert args.min_labeled == 100
     assert args.num_workers == 0
+    assert args.weight_decay == pytest.approx(1e-4)
 
 
 # ---------------------------------------------------------------------------

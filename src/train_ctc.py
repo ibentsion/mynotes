@@ -86,6 +86,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="CRNN BiLSTM layer count (D-02 Phase 5)",
     )
     p.add_argument(
+        "--weight_decay",
+        type=float,
+        default=1e-4,
+        help="AdamW weight decay (regularization C from tune analysis)",
+    )
+    p.add_argument(
         "--params",
         type=Path,
         default=None,
@@ -340,7 +346,7 @@ def run_training(
     # collapse to predicting all-blank. The optimizer can move this freely after
     # the first few epochs once non-blank representations have formed.
     model.fc.bias.data[0] = -2.0
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
     ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
 
