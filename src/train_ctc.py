@@ -92,6 +92,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="AdamW weight decay (regularization C from tune analysis)",
     )
     p.add_argument(
+        "--patience",
+        type=int,
+        default=5,
+        help="Early-stopping patience epochs on val_cer (0 = disabled)",
+    )
+    p.add_argument(
         "--params",
         type=Path,
         default=None,
@@ -355,6 +361,7 @@ def run_training(
 
     best_val_cer = float("inf")
     checkpoint_path = args.output_dir / "checkpoint.pt"
+    patience_left = args.patience if args.patience > 0 else None
 
     for epoch in range(args.epochs):
         # --- train ---
@@ -453,6 +460,11 @@ def run_training(
         if val_cer < best_val_cer:
             best_val_cer = val_cer
             torch.save(model.state_dict(), checkpoint_path)  # TRAN-06
+            if patience_left is not None:
+                patience_left = args.patience
+        else:
+            if patience_left is not None:
+                patience_left -= 1
 
         print(
             f"epoch={epoch} train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
@@ -462,6 +474,16 @@ def run_training(
 
         if on_epoch_end is not None:
             on_epoch_end(epoch, val_cer)
+
+        if patience_left is not None and patience_left == 0:
+            print(f"Early stop at epoch={epoch}: patience={args.patience} exhausted.")
+            break
+
+    # Restore best weights so caller gets the best model, not the last epoch
+    if checkpoint_path.exists():
+        model.load_state_dict(
+            torch.load(checkpoint_path, weights_only=True, map_location=device)
+        )
 
     # TRAN-08: artifact uploads at end of training
     if checkpoint_path.exists():

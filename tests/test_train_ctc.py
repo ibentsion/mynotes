@@ -98,6 +98,7 @@ def test_build_parser_has_documented_defaults():
     assert args.min_labeled == 100
     assert args.num_workers == 0
     assert args.weight_decay == pytest.approx(1e-4)
+    assert args.patience == 5
 
 
 # ---------------------------------------------------------------------------
@@ -1351,3 +1352,37 @@ def test_main_still_writes_checkpoint_via_helper(mock_task_cls, mock_init_task, 
 
     assert rc == 0
     assert (out_dir / "checkpoint.pt").exists()
+
+
+# ---------------------------------------------------------------------------
+# Test: early stopping fires before max epochs
+# ---------------------------------------------------------------------------
+
+
+@patch("src.train_ctc.Task")
+def test_early_stopping_fires_before_max_epochs(mock_task_cls, tmp_path: Path, capsys):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args(
+        [
+            "--manifest", str(manifest),
+            "--output_dir", str(out_dir),
+            "--epochs", "10",
+            "--batch_size", "2",
+            "--min_labeled", "12",
+            "--aug_copies", "0",
+            "--rnn_hidden", "128",
+            "--num_layers", "1",
+            "--patience", "1",
+        ]
+    )
+    run_training(args)
+    captured = capsys.readouterr()
+    epoch_lines = [line for line in captured.out.splitlines() if line.startswith("epoch=")]
+    # patience=1 stops after first epoch with no improvement → far fewer than 10 epochs
+    assert len(epoch_lines) < 10
