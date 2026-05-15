@@ -79,7 +79,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _suggest_params(trial: optuna.Trial) -> dict[str, object]:
     return {
-        "lr": trial.suggest_float("lr", 5e-5, 3e-3, log=True),
+        "lr": trial.suggest_float("lr", 5e-5, 1e-3, log=True),
         "batch_size": trial.suggest_categorical("batch_size", [4, 8, 16]),
         "epochs": trial.suggest_int("epochs", 20, 50),
         "rnn_hidden": trial.suggest_categorical("rnn_hidden", [128, 256]),
@@ -136,7 +136,7 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         queue_name="gpu",
         dataset_id=sweep_args.dataset_id,
         weight_decay=1e-4,
-        patience=5,
+        patience=0,  # disabled during HPO — Optuna MedianPruner is the termination mechanism
         blank_bias_init=-2.0,
         # Populated from Optuna trial.suggest_*:
         lr=params["lr"],
