@@ -79,10 +79,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def _suggest_params(trial: optuna.Trial) -> dict[str, object]:
     return {
-        "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
+        "lr": trial.suggest_float("lr", 5e-5, 3e-3, log=True),
         "batch_size": trial.suggest_categorical("batch_size", [4, 8, 16]),
         "epochs": trial.suggest_int("epochs", 20, 50),
-        "rnn_hidden": trial.suggest_categorical("rnn_hidden", [128, 256, 512]),
+        "rnn_hidden": trial.suggest_categorical("rnn_hidden", [128, 256]),
         "num_layers": trial.suggest_categorical("num_layers", [1, 2]),
         "aug_copies": trial.suggest_int("aug_copies", 0, 6),
         "rotation_max": trial.suggest_float("rotation_max", 0.0, 15.0),
