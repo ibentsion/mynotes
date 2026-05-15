@@ -347,6 +347,9 @@ def run_training(
     # the first few epochs once non-blank representations have formed.
     model.fc.bias.data[0] = -2.0
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6
+    )
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
     ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
 
@@ -411,6 +414,8 @@ def run_training(
         blank_frac = blank_frac_sum / max(val_steps, 1)
         empty_frac = empty_preds / max(cer_count, 1)
 
+        scheduler.step(val_cer)
+
         # TRAN-08: report scalars
         logger.report_scalar(title="loss", series="train", iteration=epoch, value=train_loss)
         logger.report_scalar(title="loss", series="val", iteration=epoch, value=val_loss)
@@ -419,6 +424,10 @@ def run_training(
         logger.report_scalar(title="empty_frac", series="val", iteration=epoch, value=empty_frac)
         logger.report_scalar(
             title="inf_loss_count", series="train", iteration=epoch, value=inf_count
+        )
+        logger.report_scalar(
+            title="lr", series="train", iteration=epoch,
+            value=optimizer.param_groups[0]["lr"],
         )
 
         with torch.no_grad():
