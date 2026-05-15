@@ -250,6 +250,63 @@ def _report_saliency_panel(
     plt.close(fig)
 
 
+def _report_char_distribution(
+    logger: Any,
+    charset: list[str],
+    labels: list[str],
+) -> None:
+    """Log character frequency bar chart + table to ClearML once at training start.
+
+    Shows which characters are rare vs dominant so bias and weighting decisions
+    are grounded in data rather than guesswork.
+    """
+    import unicodedata  # noqa: PLC0415
+
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+    import pandas as pd  # noqa: PLC0415
+
+    counts: dict[str, int] = {}
+    for lab in labels:
+        for ch in unicodedata.normalize("NFC", lab):
+            counts[ch] = counts.get(ch, 0) + 1
+
+    sorted_chars = sorted(charset, key=lambda c: -counts.get(c, 0))
+    freqs = [counts.get(c, 0) for c in sorted_chars]
+    total = max(sum(freqs), 1)
+    pcts = [100.0 * f / total for f in freqs]
+
+    fig, ax = plt.subplots(figsize=(8, max(4, len(sorted_chars) * 0.3)))
+    y_pos = list(range(len(sorted_chars)))
+    ax.barh(y_pos, pcts, color="steelblue")
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(sorted_chars, fontsize=8)
+    ax.set_xlabel("% of all characters")
+    ax.set_title(f"Character distribution ({total} chars, {len(charset)} unique)")
+    ax.invert_yaxis()
+    plt.tight_layout()
+    logger.report_matplotlib_figure(
+        title="char_distribution",
+        series="labeled_set",
+        iteration=0,
+        figure=fig,
+        report_image=True,
+        report_interactive=False,
+    )
+    plt.close(fig)
+
+    table = pd.DataFrame({
+        "char": sorted_chars,
+        "count": freqs,
+        "pct": [f"{p:.1f}%" for p in pcts],
+    })
+    logger.report_table(
+        title="char_distribution",
+        series="table",
+        iteration=0,
+        table_plot=table,
+    )
+
+
 def run_training(
     args: argparse.Namespace,
     on_epoch_end: Callable[[int, float], None] | None = None,
@@ -299,6 +356,7 @@ def run_training(
     # TRAN-02: charset built from labeled labels (NFC inside build_charset)
     charset = build_charset(labeled["label"].tolist())
     save_charset(args.output_dir / "charset.json", charset)
+    _report_char_distribution(logger, charset, labeled["label"].tolist())
 
     # TRAN-03: half-page split (D-03 + D-04)
     units = build_half_page_units(labeled)
