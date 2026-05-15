@@ -98,6 +98,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Early-stopping patience epochs on val_cer (0 = disabled)",
     )
     p.add_argument(
+        "--blank_bias_init",
+        type=float,
+        default=-2.0,
+        help=(
+            "Initial fc.bias for CTC blank token (index 0). "
+            "Try -3.0 or -4.0 if blank_frac stays > 0.9 after training stabilizes. "
+            "Space and other real chars don't need suppression — blank is synthetic."
+        ),
+    )
+    p.add_argument(
         "--params",
         type=Path,
         default=None,
@@ -351,7 +361,8 @@ def run_training(
     # Blank index 0 starts with a negative bias so the model doesn't immediately
     # collapse to predicting all-blank. The optimizer can move this freely after
     # the first few epochs once non-blank representations have formed.
-    model.fc.bias.data[0] = -2.0
+    # Real characters (space, niqqud, etc.) don't need bias — only the synthetic CTC blank.
+    model.fc.bias.data[0] = args.blank_bias_init
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.5, patience=3, min_lr=1e-6

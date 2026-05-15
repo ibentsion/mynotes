@@ -99,6 +99,7 @@ def test_build_parser_has_documented_defaults():
     assert args.num_workers == 0
     assert args.weight_decay == pytest.approx(1e-4)
     assert args.patience == 5
+    assert args.blank_bias_init == pytest.approx(-2.0)
 
 
 # ---------------------------------------------------------------------------
