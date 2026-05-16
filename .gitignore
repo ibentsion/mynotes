@@ -26,6 +26,10 @@ clearml.conf.local
 .pytest_cache/
 .ty_cache/
 
+# Downloaded fonts (binary, OFL — name list lives in source)
+assets/fonts/*.ttf
+!assets/fonts/.gitkeep
+
 # Claude Code worktrees
 .claude/worktrees/
 .pytest_durations.json
