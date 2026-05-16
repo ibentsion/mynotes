@@ -358,7 +358,7 @@ def test_main_happy_path_returns_0_and_writes_outputs(
     fake_gen_cls = MagicMock(return_value=mock_gen)
 
     with (
-        patch("src.generate_synthetic.init_task", return_value=mock_task) as mock_init,
+        patch("src.generate_synthetic.init_task", return_value=mock_task),
         patch("src.generate_synthetic._GeneratorFromStrings", fake_gen_cls),
         patch("src.generate_synthetic.upload_file_artifact") as mock_upload,
     ):
@@ -384,11 +384,19 @@ def test_main_happy_path_returns_0_and_writes_outputs(
 def test_main_coverage_gap_returns_4(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """main() returns 4 and prints WARN: lines when coverage gaps remain."""
+    """main() returns 4 and prints WARN: lines when coverage gaps remain.
+
+    Strategy: use a corpus where the only word is "שש", so the char 'ת'
+    in the existing label "שת" can never appear in synthetic crops — its count
+    stays at 1 no matter how many crops are generated. With min_char_count=10,
+    'ת' always has count=1 < 10 → exit 4.
+    """
     from src.generate_synthetic import main
 
-    # Labels with heavy ש bias; ת appears only once
-    labels = ["שש שש שש שש שש שת"]
+    # 'ת' appears once in existing labels; corpus word pool = {"שש", "שת"}
+    # but sampled texts will contain 'ת' only sometimes — use a high threshold
+    # and only 1 labeled row so even ת at count=1 is guaranteed below threshold.
+    labels = ["שש שת"]  # existing: ש×3, ת×1 — ת below any threshold > 1
     manifest_path = tmp_path / "manifest.csv"
     pd.DataFrame([
         {"crop_path": "c.png", "label": lbl, "status": "labeled"}
@@ -400,8 +408,17 @@ def test_main_coverage_gap_returns_4(
     (fonts_dir / "GveretLevin-Regular.ttf").write_bytes(b"TTF")
 
     real_img = Image.new("L", (80, 64), 200)
-    mock_gen = MagicMock()
-    mock_gen.__next__ = MagicMock(return_value=(real_img, "שש"))
+    # Patch render so generated labels are always "שש" only (no ת in synthetic)
+    call_count_ref = [0]
+
+    def patched_render(
+        texts: list[str], font_paths: list[str], out_crops_dir: Path, start_idx: int = 0
+    ) -> list[tuple[str, str]]:
+        call_count_ref[0] += 1
+        idx = start_idx + 1
+        png = out_crops_dir / f"syn_{idx:06d}.png"
+        real_img.save(str(png))
+        return [(str(png), "שש")]  # always ש only — ת count stays at 1
 
     monkeypatch.setattr("sys.argv", [
         "generate-synthetic",
@@ -409,14 +426,14 @@ def test_main_coverage_gap_returns_4(
         "--output_dir", str(tmp_path / "out"),
         "--count", "2",
         "--fonts_dir", str(fonts_dir),
-        "--min_char_count", "10",  # high threshold to force gap
+        "--min_char_count", "3",  # ת count=1 < 3 → gap; ש count grows above 3
         "--seed", "0",
     ])
 
     mock_task = MagicMock()
     with (
         patch("src.generate_synthetic.init_task", return_value=mock_task),
-        patch("src.generate_synthetic._GeneratorFromStrings", MagicMock(return_value=mock_gen)),
+        patch("src.generate_synthetic.render_crops", side_effect=patched_render),
         patch("src.generate_synthetic.upload_file_artifact"),
     ):
         result = main()
@@ -427,7 +444,12 @@ def test_main_coverage_gap_returns_4(
 def test_main_clearml_order_init_before_parse(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """init_task must be invoked before argparse parsing (ClearML order invariant)."""
+    """init_task must be invoked before argparse parsing (ClearML order invariant).
+
+    Verifies source-code order by checking that init_task is called before
+    _build_parser().parse_args(). We patch _build_parser itself to record ordering
+    without recursion (avoids patching ArgumentParser.parse_args which recurses).
+    """
     import io
 
     from src.generate_synthetic import main
@@ -438,13 +460,13 @@ def test_main_clearml_order_init_before_parse(
         call_order.append("init_task")
         return MagicMock()
 
-    original_parse_args = None
+    import src.generate_synthetic as _mod
 
-    def record_parse(self: object) -> object:
+    original_build_parser = _mod._build_parser
+
+    def record_build_parser() -> object:
         call_order.append("parse_args")
-        import argparse as _ap
-
-        return _ap.ArgumentParser.parse_args(self)  # type: ignore[arg-type]
+        return original_build_parser()
 
     manifest_path = tmp_path / "manifest.csv"
     pd.DataFrame([{"crop_path": "a.png", "label": "שלום", "status": "labeled"}]).to_csv(
@@ -457,16 +479,36 @@ def test_main_clearml_order_init_before_parse(
         "--output_dir", str(tmp_path / "out"),
     ])
 
-    import argparse
+    fonts_dir = tmp_path / "fonts"
+    fonts_dir.mkdir()
+    (fonts_dir / "GveretLevin-Regular.ttf").write_bytes(b"TTF")
+
+    # Override fonts_dir default so ensure_fonts won't try to download
+    monkeypatch.setattr("sys.argv", [
+        "generate-synthetic",
+        "--manifest", str(manifest_path),
+        "--output_dir", str(tmp_path / "out"),
+        "--fonts_dir", str(fonts_dir),
+        "--count", "1",
+        "--min_char_count", "1",
+    ])
 
     with (
         patch("src.generate_synthetic.init_task", side_effect=record_init),
-        patch.object(argparse.ArgumentParser, "parse_args", record_parse),
+        patch("src.generate_synthetic._build_parser", side_effect=record_build_parser),
+        patch("src.generate_synthetic.render_crops",
+              return_value=[(str(tmp_path / "out" / "crops" / "syn_000001.png"), "שלום")]),
+        patch("src.generate_synthetic.upload_file_artifact"),
     ):
+        # Ensure output dirs exist
+        (tmp_path / "out" / "crops").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "out" / "crops" / "syn_000001.png").write_bytes(b"PNG")
         captured = io.StringIO()
         with patch("sys.stderr", captured):
-            main()  # may return any code
+            main()  # may return any code — we only care about call order
 
+    assert "init_task" in call_order, "init_task was not called"
+    assert "parse_args" in call_order, "_build_parser (parse_args proxy) was not called"
     assert call_order.index("init_task") < call_order.index("parse_args"), (
         f"init_task must come before parse_args; got order: {call_order}"
     )

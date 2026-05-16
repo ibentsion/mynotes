@@ -225,6 +225,7 @@ def render_crops(
     texts: list[str],
     font_paths: list[str],
     out_crops_dir: Path,
+    start_idx: int = 0,
 ) -> list[tuple[str, str]]:
     """Render each text as a grayscale TRDG crop; save PNGs to out_crops_dir.
 
@@ -239,6 +240,8 @@ def render_crops(
         texts: Pre-sampled text strings to render (NFC-normalized).
         font_paths: Absolute paths to .ttf font files.
         out_crops_dir: Directory to write PNG files.
+        start_idx: Index offset for zero-padded PNG filenames (for sequential
+            numbering across multiple calls — used by _generate_until_count).
 
     Returns:
         List of (crop_path_str, original_text) for each successfully saved crop.
@@ -251,7 +254,7 @@ def render_crops(
 
     out_crops_dir.mkdir(parents=True, exist_ok=True)
     saved: list[tuple[str, str]] = []
-    idx = 0
+    idx = start_idx
     for text in texts:
         gen = _GeneratorFromStrings(
             strings=[text],
@@ -312,7 +315,79 @@ def write_manifest(rows: list[tuple[str, str]], output_dir: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# CLI entry point (main() implemented in Plan 03)
+# CLI helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_extra_words(wordlist: Path | None) -> list[str] | None:
+    """Read one-word-per-line wordlist file if provided; return list or None.
+
+    Args:
+        wordlist: Optional path to a plain-text word list.
+
+    Returns:
+        List of words or None if no wordlist was specified.
+    """
+    if wordlist is None:
+        return None
+    return [w.strip() for w in wordlist.read_text(encoding="utf-8").splitlines() if w.strip()]
+
+
+def _print_coverage_report(
+    gaps: dict[str, int],
+    min_char_count: int,
+    prefix: str = "",
+) -> None:
+    """Print per-character coverage WARN lines for all gap characters.
+
+    Args:
+        gaps: Dict mapping under-represented chars to their counts.
+        min_char_count: Threshold value for the warning message.
+        prefix: Optional label prefix (e.g. 'BEFORE' / 'AFTER').
+    """
+    tag = f"{prefix}: " if prefix else ""
+    for ch, cnt in sorted(gaps.items()):
+        print(f"WARN: {tag}char {ch!r} has only {cnt} examples (min={min_char_count})")
+
+
+def _generate_until_count(
+    target: int,
+    existing_labels: list[str],
+    font_paths: list[str],
+    out_crops_dir: Path,
+    rng: np.random.Generator,
+    extra_words: list[str] | None = None,
+) -> list[tuple[str, str]]:
+    """Sample texts and render crops one at a time until `target` crops are saved.
+
+    Iterates one text at a time so TRDG None results (RESEARCH.md Pitfall 3) are
+    compensated without writing excess files to disk.
+
+    Args:
+        target: Desired number of saved crops.
+        existing_labels: Existing label strings for corpus + length distribution.
+        font_paths: Absolute paths to .ttf fonts.
+        out_crops_dir: Directory to write PNG crops.
+        rng: NumPy random Generator.
+        extra_words: Optional additional words merged into the corpus (SYN-03).
+
+    Returns:
+        List of (crop_path, label) for exactly `target` saved crops.
+    """
+    words, weights = build_word_corpus(existing_labels, extra_words=extra_words)
+    char_counts = build_char_count_distribution(existing_labels)
+    all_rows: list[tuple[str, str]] = []
+
+    while len(all_rows) < target:
+        text = sample_text(words, weights, int(rng.choice(char_counts)), rng)
+        rows = render_crops([text], font_paths, out_crops_dir, start_idx=len(all_rows))
+        all_rows.extend(rows)
+
+    return all_rows
+
+
+# ---------------------------------------------------------------------------
+# CLI entry point
 # ---------------------------------------------------------------------------
 
 
@@ -365,8 +440,16 @@ def _build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main() -> int:
-    """CLI entry point — rendering loop implemented in Plan 03."""
+def main() -> int:  # noqa: PLR0911
+    """Generate synthetic Hebrew crops, write manifest.csv, and log to ClearML.
+
+    ClearML order (06-PATTERNS.md): init_task → parse_args → task.connect → work.
+
+    Returns:
+        0 on success, 2 if manifest missing, 3 if no labeled rows,
+        4 if coverage gaps remain after generation.
+    """
+    # ClearML MUST be initialized before argparse so the server can override args
     task = init_task("handwriting-hebrew-ocr", "generate_synthetic")
     args = _build_parser().parse_args()
     task.connect(vars(args), name="hyperparams")
@@ -381,7 +464,45 @@ def main() -> int:
         print("ERROR: no labeled rows in manifest — cannot build corpus.", file=sys.stderr)
         return 3
 
-    print("INFO: Plan 03 rendering loop not yet implemented.", file=sys.stderr)
+    existing_labels = labeled["label"].astype(str).tolist()
+    rng = np.random.default_rng(args.seed)
+
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    out_crops_dir = args.output_dir / "crops"
+    out_crops_dir.mkdir(parents=True, exist_ok=True)
+
+    font_paths = ensure_fonts(args.fonts_dir)
+
+    rows = _generate_until_count(
+        target=args.count,
+        existing_labels=existing_labels,
+        font_paths=font_paths,
+        out_crops_dir=out_crops_dir,
+        rng=rng,
+        extra_words=_resolve_extra_words(args.wordlist),
+    )
+
+    manifest_path = write_manifest(rows, args.output_dir)
+    upload_file_artifact(task, "manifest", manifest_path)
+
+    # Log per-char coverage scalars to ClearML (06-PATTERNS.md scalar logging pattern)
+    synthetic_labels = [label for _, label in rows]
+    all_labels = existing_labels + synthetic_labels
+    combined_counts: Counter[str] = Counter(
+        ch
+        for lbl in all_labels
+        for ch in unicodedata.normalize("NFC", lbl)
+    )
+    logger = task.get_logger()
+    for char, count in sorted(combined_counts.items()):
+        logger.report_scalar("char_coverage", char, iteration=0, value=count)
+
+    # Coverage validation — report before/after and exit 4 on remaining gaps
+    gaps_after = check_coverage(all_labels, args.min_char_count)
+    if gaps_after:
+        _print_coverage_report(gaps_after, args.min_char_count, prefix="AFTER")
+        return 4
+
     return 0
 
 
