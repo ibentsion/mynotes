@@ -14,7 +14,6 @@ from src.generate_synthetic import (
     build_word_corpus,
     check_coverage,
     ensure_fonts,
-    render_crops,
     sample_text,
     write_manifest,
 )
@@ -187,7 +186,7 @@ def test_ensure_fonts_downloads_missing(tmp_path: Path) -> None:
 
 
 def test_render_crops_skips_none_images(tmp_path: Path) -> None:
-    """render_crops must skip None images and keep generating until --count crops saved."""
+    """render_crops must skip None images; only successfully rendered crops are returned."""
     real_img = Image.new("L", (40, 64), 255)
 
     call_count = 0
@@ -196,8 +195,8 @@ def test_render_crops_skips_none_images(tmp_path: Path) -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 1:
-            return None, "x"  # first call: None — must be skipped
-        return real_img, "שלום"
+            return None, "x"  # first call: None — must be skipped (Pitfall 3)
+        return real_img, "עולם"
 
     out_crops = tmp_path / "crops"
     out_crops.mkdir()
@@ -210,15 +209,16 @@ def test_render_crops_skips_none_images(tmp_path: Path) -> None:
     with patch("src.generate_synthetic._GeneratorFromStrings", fake_cls):
         from src.generate_synthetic import render_crops
 
-        texts = ["שלום", "עולם"]  # 2 texts — enough after 1 None skip
+        # texts[0]="שלום" → None (skipped), texts[1]="עולם" → real img (saved)
+        texts = ["שלום", "עולם"]
         rows = render_crops(texts, ["fakefont.ttf"], out_crops)
 
-    # Exactly 2 PNGs saved (len(texts) minus the one None)
+    # None result is not counted — only 1 crop saved out of 2 texts
+    assert len(rows) == 1
     saved_pngs = list(out_crops.glob("*.png"))
     assert len(saved_pngs) == len(rows)
-    assert all(r[1] == "שלום" for r in rows)
-    # None result is not counted — len(rows) == 1 (one text skipped due to None)
-    assert len(rows) == 1
+    # Label is the original text argument (NOT any TRDG-returned value)
+    assert rows[0][1] == "עולם"
 
 
 def test_written_manifest_has_exact_columns(tmp_path: Path) -> None:

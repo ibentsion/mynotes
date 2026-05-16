@@ -5,6 +5,7 @@ import sys
 import unicodedata
 from collections import Counter
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -19,6 +20,28 @@ from src.clearml_utils import init_task, upload_file_artifact  # noqa: F401
 # Hebrew Unicode block: U+05D0 (א) through U+05EA (ת)
 _HEBREW_START = 0x05D0
 _HEBREW_END = 0x05EA
+
+# Font lazy-download URLs (RESEARCH.md Pattern 5 — OFL licensed Hebrew fonts)
+FONT_URLS: dict[str, str] = {
+    "GveretLevin-Regular.ttf": (
+        "https://raw.githubusercontent.com/AlefAlefAlef/gveret-levin"
+        "/master/fonts/ttf/GveretLevin-Regular.ttf"
+    ),
+    "FrankRuhlLibre-Regular.ttf": (
+        "https://fonts.gstatic.com/s/frankruhllibre/v23"
+        "/j8_96_fAw7jrcalD7oKYNX0QfAnPcbzNEEB7OoicBw7FYVqQ.ttf"
+    ),
+    "FrankRuhlLibre-Bold.ttf": (
+        "https://fonts.gstatic.com/s/frankruhllibre/v23"
+        "/j8_96_fAw7jrcalD7oKYNX0QfAnPcbzNEEB7OoicBw4iZlqQ.ttf"
+    ),
+}
+
+# Lazy TRDG import — populated on first call to render_crops.
+# Module-level name allows test patching via patch("src.generate_synthetic._GeneratorFromStrings").
+# The ACTUAL import happens inside render_crops (never at module level) to avoid the
+# transitive `wikipedia` import from trdg/generators/__init__.py (RESEARCH.md Pattern 1).
+_GeneratorFromStrings: Any = None
 
 
 def _contains_hebrew(word: str) -> bool:
@@ -152,6 +175,140 @@ def check_coverage(labels: list[str], min_char_count: int) -> dict[str, int]:
     for lbl in labels:
         char_counts.update(unicodedata.normalize("NFC", lbl))
     return {ch: cnt for ch, cnt in char_counts.items() if cnt < min_char_count}
+
+
+# ---------------------------------------------------------------------------
+# Font management
+# ---------------------------------------------------------------------------
+
+
+def ensure_fonts(fonts_dir: Path) -> list[str]:
+    """Download missing fonts to fonts_dir; return list of .ttf paths.
+
+    If fonts_dir already contains any .ttf files (user-supplied override via
+    --fonts_dir, D-03, or previously downloaded defaults), those files are returned
+    as-is without any network request. Only when the directory is empty of .ttf files
+    are the defaults downloaded from FONT_URLS.
+
+    Args:
+        fonts_dir: Directory to store/find .ttf font files.
+
+    Returns:
+        List of absolute paths to .ttf files (strings).
+    """
+    import requests  # local import — only needed on first run with no cached fonts
+
+    fonts_dir.mkdir(parents=True, exist_ok=True)
+
+    # If any .ttf already present, use those (cached or user-supplied override)
+    existing_ttfs = sorted(fonts_dir.glob("*.ttf"))
+    if existing_ttfs:
+        return [str(p) for p in existing_ttfs]
+
+    # No fonts found — download defaults from FONT_URLS
+    paths: list[str] = []
+    for name, url in FONT_URLS.items():
+        dest = fonts_dir / name
+        resp = requests.get(url, timeout=30)
+        resp.raise_for_status()
+        dest.write_bytes(resp.content)
+        paths.append(str(dest))
+    return paths
+
+
+# ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
+
+
+def render_crops(
+    texts: list[str],
+    font_paths: list[str],
+    out_crops_dir: Path,
+) -> list[tuple[str, str]]:
+    """Render each text as a grayscale TRDG crop; save PNGs to out_crops_dir.
+
+    Skips None images returned by TRDG when text/background contrast is too low
+    (RESEARCH.md Pitfall 3). The caller must supply enough texts (len(texts) >= count
+    + estimated None rate) to reach the desired crop count.
+
+    The TRDG import is deferred inside this function to avoid the transitive
+    `wikipedia` module-level import (RESEARCH.md Pattern 1 / Anti-Pattern 1).
+
+    Args:
+        texts: Pre-sampled text strings to render (NFC-normalized).
+        font_paths: Absolute paths to .ttf font files.
+        out_crops_dir: Directory to write PNG files.
+
+    Returns:
+        List of (crop_path_str, original_text) for each successfully saved crop.
+    """
+    global _GeneratorFromStrings
+    if _GeneratorFromStrings is None:
+        from trdg.generators.from_strings import GeneratorFromStrings
+
+        _GeneratorFromStrings = GeneratorFromStrings
+
+    out_crops_dir.mkdir(parents=True, exist_ok=True)
+    saved: list[tuple[str, str]] = []
+    idx = 0
+    for text in texts:
+        gen = _GeneratorFromStrings(
+            strings=[text],
+            count=1,
+            fonts=font_paths,
+            size=64,
+            skewing_angle=3,
+            random_skew=True,
+            blur=1,
+            random_blur=True,
+            background_type=1,
+            distorsion_type=1,
+            distorsion_orientation=2,
+            image_mode="L",
+            margins=(0, 0, 0, 0),
+            rtl=True,
+            fit=True,
+        )
+        img, _ = next(gen)
+        if img is None:
+            # RESEARCH.md Pitfall 3: skip rather than save
+            continue
+        idx += 1
+        crop_name = f"syn_{idx:06d}.png"
+        crop_path = out_crops_dir / crop_name
+        img.save(str(crop_path))
+        saved.append((str(crop_path), text))
+    return saved
+
+
+# ---------------------------------------------------------------------------
+# Manifest writing
+# ---------------------------------------------------------------------------
+
+
+def write_manifest(rows: list[tuple[str, str]], output_dir: Path) -> Path:
+    """Write a 3-column manifest CSV for generated synthetic crops.
+
+    Columns are exactly ["crop_path", "label", "status"] with status="labeled"
+    so CropDataset's status==labeled filter passes (06-PATTERNS.md).
+
+    Args:
+        rows: List of (crop_path, label) tuples from render_crops.
+        output_dir: Parent directory for manifest.csv.
+
+    Returns:
+        Path to the written manifest.csv.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "crops").mkdir(parents=True, exist_ok=True)
+    manifest_df = pd.DataFrame(
+        [{"crop_path": path, "label": label, "status": "labeled"} for path, label in rows],
+        columns=["crop_path", "label", "status"],
+    )
+    manifest_path = output_dir / "manifest.csv"
+    manifest_df.to_csv(manifest_path, index=False)
+    return manifest_path
 
 
 # ---------------------------------------------------------------------------
