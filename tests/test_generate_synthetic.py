@@ -248,3 +248,225 @@ def test_rendered_png_loads_as_grayscale_64px(tmp_path: Path) -> None:
     assert tensor.shape[0] == 1
     assert tensor.shape[1] == 64
     assert tensor.shape[2] >= 1
+
+
+# ---------------------------------------------------------------------------
+# Task 2: main() CLI — argparse, ClearML, coverage-gated exit codes
+# ---------------------------------------------------------------------------
+
+
+def test_build_parser_has_all_flags() -> None:
+    """_build_parser exposes all required flags with correct types and defaults."""
+    from src.generate_synthetic import _build_parser
+
+    p = _build_parser()
+    ns = p.parse_args([])  # all defaults
+
+    assert isinstance(ns.manifest, Path)
+    assert isinstance(ns.output_dir, Path)
+    assert ns.count == 500
+    assert isinstance(ns.fonts_dir, Path)
+    assert ns.wordlist is None
+    assert ns.min_char_count == 5
+    assert ns.seed == 42
+
+
+def test_main_missing_manifest_returns_2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() returns 2 and writes to stderr when --manifest does not exist."""
+    import io
+
+    from src.generate_synthetic import main
+
+    monkeypatch.setattr("sys.argv", [
+        "generate-synthetic",
+        "--manifest", str(tmp_path / "nonexistent.csv"),
+        "--output_dir", str(tmp_path / "out"),
+    ])
+
+    mock_task = MagicMock()
+    with patch("src.generate_synthetic.init_task", return_value=mock_task):
+        captured = io.StringIO()
+        with patch("sys.stderr", captured):
+            result = main()
+
+    assert result == 2
+    assert str(tmp_path / "nonexistent.csv") in captured.getvalue()
+
+
+def test_main_no_labeled_rows_returns_3(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """main() returns 3 when manifest has no status==labeled rows."""
+    import io
+
+    from src.generate_synthetic import main
+
+    # Write a manifest with only non-labeled rows
+    manifest_path = tmp_path / "manifest.csv"
+    pd.DataFrame([
+        {"crop_path": "a.png", "label": "שלום", "status": "flagged"},
+    ]).to_csv(manifest_path, index=False)
+
+    monkeypatch.setattr("sys.argv", [
+        "generate-synthetic",
+        "--manifest", str(manifest_path),
+        "--output_dir", str(tmp_path / "out"),
+    ])
+
+    mock_task = MagicMock()
+    with patch("src.generate_synthetic.init_task", return_value=mock_task):
+        captured = io.StringIO()
+        with patch("sys.stderr", captured):
+            result = main()
+
+    assert result == 3
+
+
+def test_main_happy_path_returns_0_and_writes_outputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """main() returns 0; writes N PNGs and manifest.csv; Task.connect + upload called."""
+    from src.generate_synthetic import main
+
+    # Write a manifest with labeled Hebrew rows
+    labels = ["שלום עולם", "בוקר טוב", "ערב טוב", "לילה טוב", "יום טוב"]
+    manifest_path = tmp_path / "manifest.csv"
+    pd.DataFrame([
+        {"crop_path": f"c{i}.png", "label": lbl, "status": "labeled"}
+        for i, lbl in enumerate(labels)
+    ]).to_csv(manifest_path, index=False)
+
+    count = 5
+    real_img = Image.new("L", (80, 64), 200)
+
+    fonts_dir = tmp_path / "fonts"
+    fonts_dir.mkdir()
+    fake_font = fonts_dir / "GveretLevin-Regular.ttf"
+    fake_font.write_bytes(b"TTF")
+
+    monkeypatch.setattr("sys.argv", [
+        "generate-synthetic",
+        "--manifest", str(manifest_path),
+        "--output_dir", str(tmp_path / "out"),
+        "--count", str(count),
+        "--fonts_dir", str(fonts_dir),
+        "--min_char_count", "1",
+        "--seed", "42",
+    ])
+
+    mock_task = MagicMock()
+    mock_gen = MagicMock()
+    mock_gen.__next__ = MagicMock(return_value=(real_img, "שלום"))
+    fake_gen_cls = MagicMock(return_value=mock_gen)
+
+    with (
+        patch("src.generate_synthetic.init_task", return_value=mock_task) as mock_init,
+        patch("src.generate_synthetic._GeneratorFromStrings", fake_gen_cls),
+        patch("src.generate_synthetic.upload_file_artifact") as mock_upload,
+    ):
+        result = main()
+
+    assert result == 0
+    out_manifest = tmp_path / "out" / "manifest.csv"
+    assert out_manifest.exists(), "manifest.csv not written"
+    out_df = pd.read_csv(out_manifest)
+    assert len(out_df) == count, f"expected {count} rows, got {len(out_df)}"
+    pngs = list((tmp_path / "out" / "crops").glob("*.png"))
+    assert len(pngs) == count, f"expected {count} PNGs, got {len(pngs)}"
+    # task.connect called with vars(args)
+    mock_task.connect.assert_called_once()
+    connect_arg = mock_task.connect.call_args[0][0]
+    assert isinstance(connect_arg, dict)
+    assert "count" in connect_arg
+    # upload_file_artifact called with "manifest"
+    mock_upload.assert_called_once()
+    assert mock_upload.call_args[0][1] == "manifest"
+
+
+def test_main_coverage_gap_returns_4(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """main() returns 4 and prints WARN: lines when coverage gaps remain."""
+    from src.generate_synthetic import main
+
+    # Labels with heavy ש bias; ת appears only once
+    labels = ["שש שש שש שש שש שת"]
+    manifest_path = tmp_path / "manifest.csv"
+    pd.DataFrame([
+        {"crop_path": "c.png", "label": lbl, "status": "labeled"}
+        for lbl in labels
+    ]).to_csv(manifest_path, index=False)
+
+    fonts_dir = tmp_path / "fonts"
+    fonts_dir.mkdir()
+    (fonts_dir / "GveretLevin-Regular.ttf").write_bytes(b"TTF")
+
+    real_img = Image.new("L", (80, 64), 200)
+    mock_gen = MagicMock()
+    mock_gen.__next__ = MagicMock(return_value=(real_img, "שש"))
+
+    monkeypatch.setattr("sys.argv", [
+        "generate-synthetic",
+        "--manifest", str(manifest_path),
+        "--output_dir", str(tmp_path / "out"),
+        "--count", "2",
+        "--fonts_dir", str(fonts_dir),
+        "--min_char_count", "10",  # high threshold to force gap
+        "--seed", "0",
+    ])
+
+    mock_task = MagicMock()
+    with (
+        patch("src.generate_synthetic.init_task", return_value=mock_task),
+        patch("src.generate_synthetic._GeneratorFromStrings", MagicMock(return_value=mock_gen)),
+        patch("src.generate_synthetic.upload_file_artifact"),
+    ):
+        result = main()
+
+    assert result == 4
+
+
+def test_main_clearml_order_init_before_parse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """init_task must be invoked before argparse parsing (ClearML order invariant)."""
+    import io
+
+    from src.generate_synthetic import main
+
+    call_order: list[str] = []
+
+    def record_init(*_: object, **__: object) -> MagicMock:
+        call_order.append("init_task")
+        return MagicMock()
+
+    original_parse_args = None
+
+    def record_parse(self: object) -> object:
+        call_order.append("parse_args")
+        import argparse as _ap
+
+        return _ap.ArgumentParser.parse_args(self)  # type: ignore[arg-type]
+
+    manifest_path = tmp_path / "manifest.csv"
+    pd.DataFrame([{"crop_path": "a.png", "label": "שלום", "status": "labeled"}]).to_csv(
+        manifest_path, index=False
+    )
+
+    monkeypatch.setattr("sys.argv", [
+        "generate-synthetic",
+        "--manifest", str(manifest_path),
+        "--output_dir", str(tmp_path / "out"),
+    ])
+
+    import argparse
+
+    with (
+        patch("src.generate_synthetic.init_task", side_effect=record_init),
+        patch.object(argparse.ArgumentParser, "parse_args", record_parse),
+    ):
+        captured = io.StringIO()
+        with patch("sys.stderr", captured):
+            main()  # may return any code
+
+    assert call_order.index("init_task") < call_order.index("parse_args"), (
+        f"init_task must come before parse_args; got order: {call_order}"
+    )
