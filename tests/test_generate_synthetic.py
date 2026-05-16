@@ -1,15 +1,22 @@
 """Tests for src/generate_synthetic.py — corpus, sampling, distribution, coverage."""
 
 import unicodedata
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pandas as pd
 import pytest
+from PIL import Image
 
 from src.generate_synthetic import (
     build_char_count_distribution,
     build_word_corpus,
     check_coverage,
+    ensure_fonts,
+    render_crops,
     sample_text,
+    write_manifest,
 )
 
 # ---------------------------------------------------------------------------
@@ -135,3 +142,109 @@ def test_check_coverage_before_after_gap_shrinks():
     gaps_after = check_coverage(existing + synthetic, min_char_count=2)
     # ב now has count 2 — at threshold, so not in gap dict
     assert "ב" not in gaps_after
+
+
+# ---------------------------------------------------------------------------
+# Task 1: ensure_fonts, render_crops, write_manifest
+# ---------------------------------------------------------------------------
+
+
+def test_ensure_fonts_skips_existing(tmp_path: Path) -> None:
+    """Pre-existing .ttf files must not trigger a network request."""
+    # Create one fake .ttf in the fonts dir matching a name in FONT_URLS
+    from src.generate_synthetic import FONT_URLS
+
+    first_name = next(iter(FONT_URLS))
+    (tmp_path / first_name).write_bytes(b"FAKE-TTF")
+
+    # patch requests.get to fail immediately if called
+    with patch("requests.get", side_effect=RuntimeError("should not download")):
+        paths = ensure_fonts(tmp_path)
+
+    # The existing file path must be in the returned list
+    assert str(tmp_path / first_name) in paths
+
+
+def test_ensure_fonts_downloads_missing(tmp_path: Path) -> None:
+    """Missing .ttf files are downloaded and written to fonts_dir."""
+    fake_content = b"FAKE-TTF-CONTENT"
+    mock_resp = MagicMock()
+    mock_resp.content = fake_content
+
+    with patch("requests.get", return_value=mock_resp) as mock_get:
+        paths = ensure_fonts(tmp_path)
+
+    from src.generate_synthetic import FONT_URLS
+
+    # requests.get called once per FONT_URLS entry
+    assert mock_get.call_count == len(FONT_URLS)
+    mock_resp.raise_for_status.assert_called()
+    for name in FONT_URLS:
+        dest = tmp_path / name
+        assert dest.exists()
+        assert dest.read_bytes() == fake_content
+        assert str(dest) in paths
+
+
+def test_render_crops_skips_none_images(tmp_path: Path) -> None:
+    """render_crops must skip None images and keep generating until --count crops saved."""
+    real_img = Image.new("L", (40, 64), 255)
+
+    call_count = 0
+
+    def fake_next(gen_instance: object) -> tuple[Image.Image | None, str]:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return None, "x"  # first call: None — must be skipped
+        return real_img, "שלום"
+
+    out_crops = tmp_path / "crops"
+    out_crops.mkdir()
+
+    fake_gen = MagicMock()
+    fake_gen.__next__ = fake_next
+
+    fake_cls = MagicMock(return_value=fake_gen)
+
+    with patch("src.generate_synthetic._GeneratorFromStrings", fake_cls):
+        from src.generate_synthetic import render_crops
+
+        texts = ["שלום", "עולם"]  # 2 texts — enough after 1 None skip
+        rows = render_crops(texts, ["fakefont.ttf"], out_crops)
+
+    # Exactly 2 PNGs saved (len(texts) minus the one None)
+    saved_pngs = list(out_crops.glob("*.png"))
+    assert len(saved_pngs) == len(rows)
+    assert all(r[1] == "שלום" for r in rows)
+    # None result is not counted — len(rows) == 1 (one text skipped due to None)
+    assert len(rows) == 1
+
+
+def test_written_manifest_has_exact_columns(tmp_path: Path) -> None:
+    """manifest.csv must have exactly [crop_path, label, status] with status=labeled."""
+    rows = [
+        (str(tmp_path / "crops" / "syn_000001.png"), "שלום"),
+        (str(tmp_path / "crops" / "syn_000002.png"), "עולם"),
+    ]
+    manifest_path = write_manifest(rows, tmp_path)
+    df = pd.read_csv(manifest_path)
+
+    assert list(df.columns) == ["crop_path", "label", "status"]
+    assert (df["status"] == "labeled").all()
+    assert len(df) == 2
+
+
+def test_rendered_png_loads_as_grayscale_64px(tmp_path: Path) -> None:
+    """A PNG saved by render_crops must load via load_crop as (1, 64, W)."""
+    from src.ctc_utils import load_crop
+
+    # Create a real 64px-tall grayscale image and save it
+    img = Image.new("L", (80, 64), 128)
+    png_path = tmp_path / "test_crop.png"
+    img.save(str(png_path))
+
+    tensor = load_crop(str(png_path))
+    assert tensor.shape[0] == 1
+    assert tensor.shape[1] == 64
+    assert tensor.shape[2] >= 1
