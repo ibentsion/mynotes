@@ -74,7 +74,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. CropDataset loads the synthetic manifest without any code changes — crops are grayscale, 64px height, variable width
   3. Text corpus is drawn from words extracted from existing labeled crops; rare characters appear more frequently than common ones due to weighted sampling
   4. Running the CLI prints a per-character count report and exits non-zero with a gap summary when any character falls below `--min_char_count`
-**Plans**: TBD
+**Plans:** 3 plans
+- [ ] 06-01-PLAN.md — Add TRDG dependency stack + override-dependencies to pyproject.toml; gitignore downloaded fonts; verify uv sync keeps numpy 2.4.4
+- [ ] 06-02-PLAN.md — TDD pure core: build_word_corpus (inverse-freq weighting), sample_text, build_char_count_distribution, check_coverage
+- [ ] 06-03-PLAN.md — Font lazy-download + TRDG Hebrew render loop + manifest writer + main() CLI with ClearML and coverage-gated exit codes
 
 ### Phase 7: Augmentation & Two-Stage Training
 **Goal**: Training gains elastic deformation augmentation and the ability to pre-train on synthetic data before fine-tuning on real labeled crops
