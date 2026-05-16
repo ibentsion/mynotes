@@ -76,7 +76,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. Running the CLI prints a per-character count report and exits non-zero with a gap summary when any character falls below `--min_char_count`
 **Plans:** 3 plans
 - [x] 06-01-PLAN.md — Add TRDG dependency stack + override-dependencies to pyproject.toml; gitignore downloaded fonts; verify uv sync keeps numpy 2.4.4
-- [ ] 06-02-PLAN.md — TDD pure core: build_word_corpus (inverse-freq weighting), sample_text, build_char_count_distribution, check_coverage
+- [x] 06-02-PLAN.md — TDD pure core: build_word_corpus (inverse-freq weighting), sample_text, build_char_count_distribution, check_coverage
 - [ ] 06-03-PLAN.md — Font lazy-download + TRDG Hebrew render loop + manifest writer + main() CLI with ClearML and coverage-gated exit codes
 
 ### Phase 7: Augmentation & Two-Stage Training
