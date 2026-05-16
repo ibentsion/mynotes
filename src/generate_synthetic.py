@@ -9,7 +9,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from clearml import Task  # noqa: F401  # module-level for test patchability
 
 from src.clearml_utils import init_task, upload_file_artifact  # noqa: F401
 
@@ -103,6 +102,8 @@ def build_word_corpus(
 
     # Word score = sum of inverse char frequencies (RESEARCH.md Pattern 3 / Assumption A1)
     total_chars = sum(char_freq.values())
+    if total_chars == 0:
+        raise ValueError("build_word_corpus: labels contain no characters to compute word weights")
     word_scores = np.array(
         [
             sum(1.0 / (char_freq.get(c, 1) / total_chars + 1e-8) for c in word)
@@ -133,6 +134,7 @@ def sample_text(
     Returns:
         Space-joined string of sampled words.
     """
+    target_chars = max(1, target_chars)
     selected: list[str] = []
     total = 0
     while total < target_chars:
@@ -304,7 +306,6 @@ def write_manifest(rows: list[tuple[str, str]], output_dir: Path) -> Path:
         Path to the written manifest.csv.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    (output_dir / "crops").mkdir(parents=True, exist_ok=True)
     manifest_df = pd.DataFrame(
         [{"crop_path": path, "label": label, "status": "labeled"} for path, label in rows],
         columns=["crop_path", "label", "status"],
@@ -376,6 +377,11 @@ def _generate_until_count(
     """
     words, weights = build_word_corpus(existing_labels, extra_words=extra_words)
     char_counts = build_char_count_distribution(existing_labels)
+    # Filter zeros: empty-string labels produce count=0; sampling 0 → sample_text returns ""
+    # → TRDG renders None → render_crops returns [] → infinite loop (CR-02).
+    char_counts = char_counts[char_counts > 0]
+    if len(char_counts) == 0:
+        char_counts = np.array([1])
     all_rows: list[tuple[str, str]] = []
 
     while len(all_rows) < target:
@@ -473,14 +479,18 @@ def main() -> int:  # noqa: PLR0911
 
     font_paths = ensure_fonts(args.fonts_dir)
 
-    rows = _generate_until_count(
-        target=args.count,
-        existing_labels=existing_labels,
-        font_paths=font_paths,
-        out_crops_dir=out_crops_dir,
-        rng=rng,
-        extra_words=_resolve_extra_words(args.wordlist),
-    )
+    try:
+        rows = _generate_until_count(
+            target=args.count,
+            existing_labels=existing_labels,
+            font_paths=font_paths,
+            out_crops_dir=out_crops_dir,
+            rng=rng,
+            extra_words=_resolve_extra_words(args.wordlist),
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
     manifest_path = write_manifest(rows, args.output_dir)
     upload_file_artifact(task, "manifest", manifest_path)

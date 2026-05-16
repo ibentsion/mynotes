@@ -473,17 +473,10 @@ def test_main_clearml_order_init_before_parse(
         manifest_path, index=False
     )
 
-    monkeypatch.setattr("sys.argv", [
-        "generate-synthetic",
-        "--manifest", str(manifest_path),
-        "--output_dir", str(tmp_path / "out"),
-    ])
-
     fonts_dir = tmp_path / "fonts"
     fonts_dir.mkdir()
     (fonts_dir / "GveretLevin-Regular.ttf").write_bytes(b"TTF")
 
-    # Override fonts_dir default so ensure_fonts won't try to download
     monkeypatch.setattr("sys.argv", [
         "generate-synthetic",
         "--manifest", str(manifest_path),
