@@ -114,6 +114,13 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--words_file",
+        type=Path,
+        default=None,
+        help="Word list (one word per line) whose characters are merged into the charset "
+        "so it stays stable even when labeled data is sparse (e.g. data/words.txt)",
+    )
+    p.add_argument(
         "--params",
         type=Path,
         default=None,
@@ -365,8 +372,13 @@ def run_training(
     if args.dataset_id is not None:
         labeled = remap_dataset_paths(labeled, args.dataset_id)
 
-    # TRAN-02: charset built from labeled labels (NFC inside build_charset)
-    charset = build_charset(labeled["label"].tolist())
+    # TRAN-02: charset built from labeled labels + optional word list for stability
+    extra_words: list[str] | None = None
+    if args.words_file is not None:
+        if not args.words_file.exists():
+            raise FileNotFoundError(f"--words_file not found: {args.words_file}")
+        extra_words = args.words_file.read_text(encoding="utf-8").splitlines()
+    charset = build_charset(labeled["label"].tolist(), extra_words=extra_words)
     save_charset(args.output_dir / "charset.json", charset)
     _report_char_distribution(logger, charset, labeled["label"].tolist())
 

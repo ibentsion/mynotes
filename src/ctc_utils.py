@@ -15,16 +15,21 @@ import torch.nn.functional as F
 # ---------------------------------------------------------------------------
 
 
-def build_charset(labels: list[str]) -> list[str]:
+def build_charset(labels: list[str], extra_words: list[str] | None = None) -> list[str]:
     """Return sorted list of unique NFC-normalized characters across all labels.
 
     Index in returned list maps to charset slot; blank token is reserved at index 0
     OUTSIDE this list (caller does +1 offset when encoding).
+
+    extra_words: optional word list (e.g. from data/words.txt) whose characters are
+    merged in so the charset stays stable even when labeled data is sparse.
     """
     chars: set[str] = set()
     for label in labels:
-        normalized = unicodedata.normalize("NFC", label)
-        chars.update(normalized)
+        chars.update(unicodedata.normalize("NFC", label))
+    if extra_words:
+        for word in extra_words:
+            chars.update(unicodedata.normalize("NFC", word))
     return sorted(chars)
 
 
