@@ -5,7 +5,7 @@ milestone_name: Progress
 status: executing
 stopped_at: Completed quick/260526-o8k config.yaml plan
 last_updated: "2026-05-26T17:33:26.908Z"
-last_activity: "2026-05-26 -- Completed quick task 260526-o8k: config.yaml for dataset ids and best hyperparams"
+last_activity: "2026-05-26 -- Completed quick task 260526-gpu: Update all CPU-only training references to GPU via ClearML agent (queue ofek)"
 progress:
   total_phases: 7
   completed_phases: 6
@@ -72,8 +72,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - Region-first segmentation (not line-only): Hebrew notes have diagonal/overlapping text
-- CRNN+CTC over TrOCR: lighter, trains CPU with <300 samples
-- CPU-only for MVP: no local CUDA; dataset small enough
+- CRNN+CTC over TrOCR: lighter, trains on <300 samples
+- GPU training via ClearML agent (queue: ofek, RTX 5060, WSL2); CPU fallback retained
 - uv_build backend with src/mynotes/ layout (required for uv package builds)
 - .python-version committed (not gitignored) for tool pinning
 - [Phase 01-02]: Module-level ClearML imports (Task/Dataset) required for test patchability via src.clearml_utils.Task
@@ -139,6 +139,7 @@ None yet.
 | 260526-npy | Add Gmail PDF attachment downloader script: OAuth2 auth, skips existing files, prints found/skipped/downloaded summary | 2026-05-26 | 0fa83eb | [260526-npy-download-pdfs-from-gmail-for-unlabelled-](./quick/260526-npy-download-pdfs-from-gmail-for-unlabelled-/) |
 | 260526-nk3 | Register outputs/synthetic/ as ClearML dataset; wire --synthetic_dataset_id into train_ctc (train split only) and tune | 2026-05-26 | f66399d | [260526-nk3-register-synthetic-outputs-as-clearml-da](./quick/260526-nk3-register-synthetic-outputs-as-clearml-da/) |
 | 260526-o8k | config.yaml for dataset ids and best hyperparams, auto-updated on register, read by training and tuning | 2026-05-26 | b37d21a | [260526-o8k-config-yaml-for-dataset-ids-and-best-hyp](./quick/260526-o8k-config-yaml-for-dataset-ids-and-best-hyp/) |
+| 260526-gpu | Update all CPU-only training references to GPU via ClearML agent (queue ofek) | 2026-05-26 | TBD | [260526-gpu-update-cpu-training-references](./quick/260526-gpu-update-cpu-training-references/) |
 
 ## Session Continuity
 

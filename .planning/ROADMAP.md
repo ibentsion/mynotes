@@ -55,14 +55,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Phase 2
 **Requirements**: TRAN-01, TRAN-02, TRAN-03, TRAN-04, TRAN-05, TRAN-06, TRAN-07, TRAN-08, EVAL-01, EVAL-02, EVAL-03, EVAL-04
 **Success Criteria** (what must be TRUE):
-  1. train_ctc.py reads only status=labeled crops, builds a dynamic Hebrew charset, and completes training on CPU
+  1. train_ctc.py reads only status=labeled crops, builds a dynamic Hebrew charset, and completes training (GPU via ClearML agent queue ofek, CPU fallback supported)
   2. Train/val split is done by page, not by crop, so no page appears in both sets
   3. Best model checkpoint and charset.json are saved to disk after training
   4. evaluate.py loads the checkpoint and writes eval_report.csv with per-crop predictions, CER, and exact match rate
   5. ClearML tasks train_baseline_ctc and evaluate_model log all metrics, artifacts, and CLI hyperparameters
 **Plans:** 2/3 plans executed
-- [x] 03-01-PLAN.md — Add torch CPU-only dependency and create src/ctc_utils.py shared module (CRNN model, charset I/O, greedy decode, CER, half-page split, collate, device resolver) with comprehensive unit tests
-- [x] 03-02-PLAN.md — Implement src/train_ctc.py CLI: filter labeled crops, build charset, half-page train/val split, CRNN+CTC training on CPU, save best checkpoint+charset, log per-epoch scalars and artifacts to ClearML task train_baseline_ctc
+- [x] 03-01-PLAN.md — Add torch dependency and create src/ctc_utils.py shared module (CRNN model, charset I/O, greedy decode, CER, half-page split, collate, device resolver) with comprehensive unit tests
+- [x] 03-02-PLAN.md — Implement src/train_ctc.py CLI: filter labeled crops, build charset, half-page train/val split, CRNN+CTC training (device auto-detected; enqueues to ClearML agent for GPU), save best checkpoint+charset, log per-epoch scalars and artifacts to ClearML task train_baseline_ctc
 - [x] 03-03-PLAN.md — Implement src/evaluate.py CLI: load checkpoint+charset, reproduce val split, run greedy CTC decode, write eval_report.csv with image_path/target/prediction/is_exact, log final CER + exact_match_rate to ClearML task evaluate_model
 
 ### Phase 6: Synthetic Generation

@@ -9,7 +9,7 @@ A local Python MVP pipeline for personal Hebrew handwritten OCR, built around a 
 
 ### Constraints
 
-- **Runtime**: Python 3.13, CPU-only for MVP — model must train without CUDA
+- **Runtime**: Python 3.13; GPU training via ClearML agent (queue: ofek, RTX 5060, WSL2) — CPU fallback works but is not a design constraint
 - **Stack**: pdf2image + Poppler, OpenCV, PyTorch, Streamlit, ClearML — no additional heavy dependencies
 - **Data**: Personal Hebrew notes only; privacy-sensitive — stays local
 - **Reproducibility**: Git commit, package versions, and all configs stored in ClearML per run

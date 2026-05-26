@@ -51,14 +51,12 @@ Validated in Phase 5: Optuna HPO sweep (tune.py), per-trial ClearML tasks, Media
 - Handwriting characteristics: not always on straight lines, may include diagonal text, margin notes, overlapping regions, text added later, irregular layouts
 - Segmentation must be reviewable — messy writing makes automated segmentation unreliable
 - Target labeled dataset size: 50–120 crops for MVP, growing to 150–300
-- Local machine: Intel UHD 620 (integrated GPU, no CUDA) — CPU-only training
-- CPU training estimate: ~20–60 min for MVP dataset (50–120 crops); ~1.5–3 hours at 300 crops
-- Cloud GPU (Colab T4) is an option when iteration speed matters at scale, but not needed for MVP
+- Training runs remotely on GPU via ClearML agent (queue: ofek, RTX 5060, WSL2) — CPU fallback available but not the target runtime
 - ClearML project: `handwriting-hebrew-ocr`; tasks: `data_prep`, `manual_review_summary`, `train_baseline_ctc`, `evaluate_model`
 
 ## Constraints
 
-- **Runtime**: Python 3.13; GPU training via ClearML agent (RTX 5060, WSL2) is primary — CPU still works but is not a design constraint
+- **Runtime**: Python 3.13; GPU training via ClearML agent (queue: ofek, RTX 5060, WSL2) — CPU still works but is not a design constraint
 - **Stack**: pdf2image + Poppler, OpenCV, PyTorch, Streamlit, ClearML — no additional heavy dependencies
 - **Data**: Personal Hebrew notes only; privacy-sensitive — stays local
 - **Reproducibility**: Git commit, package versions, and all configs stored in ClearML per run
@@ -70,12 +68,12 @@ Validated in Phase 5: Optuna HPO sweep (tune.py), per-trial ClearML tasks, Media
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
 | Region-first segmentation (not line-only) | Hebrew notes have diagonal text, margin notes, overlapping regions — strict line segmentation would miss too much | — Pending |
-| CRNN+CTC over transformer OCR (TrOCR) | Simpler, lighter, trains on CPU with <300 samples; transformers need more data and compute | — Pending |
+| CRNN+CTC over transformer OCR (TrOCR) | Simpler, lighter, trains on <300 samples; transformers need more data and compute | — Pending |
 | Page-level train/val split | Prevents crop-level leakage where crops from the same page appear in both train and val | — Pending |
 | Streamlit for review UI | Local-first, no server needed, quick to build; no need for a web backend for personal use | — Pending |
 | ClearML for experiment tracking | Already part of the user's ML workflow; handles dataset versioning + artifact storage in one tool | — Pending |
 | Label hard/flagged regions first | Maximizes model improvement per label; easy crops add less signal for a hard domain | — Pending |
-| CPU-only for MVP | No local CUDA GPU available; dataset is small enough that CPU training is feasible | — Pending |
+| GPU training via ClearML agent | RTX 5060 (WSL2) on queue ofek handles all training remotely; CPU fallback retained for portability | — Validated |
 
 ## Evolution
 
