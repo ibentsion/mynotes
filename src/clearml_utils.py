@@ -77,3 +77,14 @@ def remap_dataset_paths(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
         lambda p: str(root / "pages" / Path(p).name)
     )
     return df
+
+
+def remap_synthetic_paths(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
+    """Remap crop_path only — synthetic rows have no page_path (D-10)."""
+    ds = Dataset.get(dataset_id=dataset_id)
+    root = Path(ds.get_local_copy())
+    df = df.copy()
+    df["crop_path"] = df["crop_path"].apply(
+        lambda p: str(root / "crops" / Path(p).name)
+    )
+    return df
