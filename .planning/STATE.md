@@ -139,7 +139,7 @@ None yet.
 | 260526-npy | Add Gmail PDF attachment downloader script: OAuth2 auth, skips existing files, prints found/skipped/downloaded summary | 2026-05-26 | 0fa83eb | [260526-npy-download-pdfs-from-gmail-for-unlabelled-](./quick/260526-npy-download-pdfs-from-gmail-for-unlabelled-/) |
 | 260526-nk3 | Register outputs/synthetic/ as ClearML dataset; wire --synthetic_dataset_id into train_ctc (train split only) and tune | 2026-05-26 | f66399d | [260526-nk3-register-synthetic-outputs-as-clearml-da](./quick/260526-nk3-register-synthetic-outputs-as-clearml-da/) |
 | 260526-o8k | config.yaml for dataset ids and best hyperparams, auto-updated on register, read by training and tuning | 2026-05-26 | b37d21a | [260526-o8k-config-yaml-for-dataset-ids-and-best-hyp](./quick/260526-o8k-config-yaml-for-dataset-ids-and-best-hyp/) |
-| 260526-gpu | Update all CPU-only training references to GPU via ClearML agent (queue ofek) | 2026-05-26 | TBD | [260526-gpu-update-cpu-training-references](./quick/260526-gpu-update-cpu-training-references/) |
+| 260526-gpu | Update all CPU-only training references to GPU via ClearML agent (queue ofek) | 2026-05-26 | ec835bb | [260526-gpu-update-cpu-training-references](./quick/260526-gpu-update-cpu-training-references/) |
 
 ## Session Continuity
 
