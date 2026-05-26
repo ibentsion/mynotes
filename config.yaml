@@ -1,0 +1,17 @@
+datasets:
+  real_id: "02210b47a0534666b0462a175bf2af9d"
+  synthetic_id: null  # set by: uv run python scripts/register_synthetic_dataset.py
+
+hyperparams:
+  lr: 1.0e-3
+  batch_size: 8
+  epochs: 30
+  rnn_hidden: 256
+  num_layers: 2
+  aug_copies: 4
+  rotation_max: 7.0
+  brightness_delta: 0.10
+  noise_sigma: 0.02
+  weight_decay: 1.0e-4
+  patience: 5
+  blank_bias_init: -2.0
