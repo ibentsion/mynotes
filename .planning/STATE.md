@@ -5,7 +5,7 @@ milestone_name: synthetic-data
 status: executing
 stopped_at: Phase 6 context gathered
 last_updated: "2026-05-16T09:48:18.075Z"
-last_activity: 2026-05-26 -- Completed quick task 260526-n83: Patch trdg/Pillow 10+ incompatibility in generate_synthetic.py
+last_activity: 2026-05-26 -- Completed quick task 260526-nk3: Register synthetic outputs as ClearML dataset
 progress:
   total_phases: 6
   completed_phases: 5
@@ -137,9 +137,10 @@ None yet.
 | 260515-hpo | Fix HPO tune config: patience=0 (disable early stop during HPO), max LR 3e-3→1e-3, ReduceLROnPlateau patience 3→6 | 2026-05-15 | ba8dd2c | [260515-hpo-tune-fix-patience-lr](./quick/260515-hpo-tune-fix-patience-lr/) |
 | 260526-n83 | Patch trdg 1.8.0 / Pillow 10+ incompatibility: restore ImageFont.FreeTypeFont.getsize via getbbox shim | 2026-05-26 | 852719d | [260526-n83-patch-trdg-pillow-10-incompatibility-in-](./quick/260526-n83-patch-trdg-pillow-10-incompatibility-in-/) |
 | 260526-npy | Add Gmail PDF attachment downloader script: OAuth2 auth, skips existing files, prints found/skipped/downloaded summary | 2026-05-26 | 0fa83eb | [260526-npy-download-pdfs-from-gmail-for-unlabelled-](./quick/260526-npy-download-pdfs-from-gmail-for-unlabelled-/) |
+| 260526-nk3 | Register outputs/synthetic/ as ClearML dataset; wire --synthetic_dataset_id into train_ctc (train split only) and tune | 2026-05-26 | f66399d | [260526-nk3-register-synthetic-outputs-as-clearml-da](./quick/260526-nk3-register-synthetic-outputs-as-clearml-da/) |
 
 ## Session Continuity
 
-Last session: 2026-05-16T06:50:17.600Z
-Stopped at: Phase 6 context gathered
+Last session: 2026-05-26T00:00:00Z
+Stopped at: Completed quick task 260526-nk3: Register synthetic outputs as ClearML dataset
 Resume file: .planning/phases/06-synthetic-generation/06-CONTEXT.md
