@@ -85,10 +85,19 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Requirements**: AUG-01, AUG-02, TRAIN-01, TRAIN-02
 **Success Criteria** (what must be TRUE):
   1. Training with `--elastic_alpha > 0` applies elastic deformation to training crops, visible in ClearML debug samples
-  2. Running `train_ctc.py --pretrain_manifest synthetic.csv --pretrain_epochs 10` executes a synthetic pre-training loop before the real-data fine-tuning loop
-  3. Pre-training val loss is computed against a held-out fraction of the synthetic set; fine-tuning val loss uses the real val set — both reported separately in ClearML
+  2. Two-call workflow: `train_ctc.py --pretrain_manifest synthetic.csv --pretrain_epochs 30` runs a
+     standalone synthetic pre-training loop and saves `checkpoint_pretrain.pt` (does NOT proceed to
+     fine-tuning); fine-tuning is a separate invocation: `train_ctc.py --manifest real.csv
+     --pretrain_checkpoint_path outputs/checkpoint_pretrain.pt` (updated per CONTEXT.md two-call decision)
+  3. Pre-training val loss is computed against a held-out random fraction of the synthetic set;
+     fine-tuning val loss uses the real page-safe val set — both reported separately in ClearML
+     with `pretrain/` series prefix for pre-training scalars
   4. `--pretrain_lr` sets the learning rate for pre-training independently of `--lr` used during fine-tuning
-**Plans**: TBD
+**Plans:** 4 plans
+- [ ] 07-01-PLAN.md — Fix pre-existing test failures: fake_build_charset mock signature missing extra_words kwarg
+- [ ] 07-02-PLAN.md — Add albumentations==2.0.8 dep; extend AugmentTransform with elastic_alpha/elastic_sigma params and ElasticTransform+GridDistortion path; tests
+- [ ] 07-03-PLAN.md — Add --elastic_alpha/--elastic_sigma CLI flags to train_ctc.py; wire into AugmentTransform construction; update tune.py _objective Namespace; tests
+- [ ] 07-04-PLAN.md — Refactor run_training(): extract _run_loop + _run_pretrain; add pretrain CLI flags; update tune.py _build_parser; tests; update ROADMAP success criteria
 
 ## Progress
 
@@ -135,4 +144,4 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 6. Synthetic Generation | 0/? | Not started | - |
-| 7. Augmentation & Two-Stage Training | 0/? | Not started | - |
+| 7. Augmentation & Two-Stage Training | 0/4 | Not started | - |
