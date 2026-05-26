@@ -211,10 +211,9 @@ def ensure_fonts(fonts_dir: Path) -> list[str]:
 
     fonts_dir.mkdir(parents=True, exist_ok=True)
 
-    # If any .ttf already present, use those (cached or user-supplied override)
-    existing_ttfs = sorted(fonts_dir.glob("*.ttf"))
-    if existing_ttfs:
-        return [str(p) for p in existing_ttfs]
+    existing = sorted([*fonts_dir.glob("*.ttf"), *fonts_dir.glob("*.otf")])
+    if existing:
+        return [str(p) for p in existing]
 
     # No fonts found — download defaults from FONT_URLS
     paths: list[str] = []
