@@ -9,8 +9,17 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from PIL import ImageFont
 
 from src.clearml_utils import init_task, upload_file_artifact  # noqa: F401
+
+# Pillow 10 removed ImageFont.FreeTypeFont.getsize; trdg 1.8.0 still calls it. Restore via getbbox.
+if not hasattr(ImageFont.FreeTypeFont, "getsize"):
+    def _compat_getsize(self, text, *args, **kwargs):
+        bb = self.getbbox(text)
+        return bb[2] - bb[0], bb[3] - bb[1]
+
+    ImageFont.FreeTypeFont.getsize = _compat_getsize  # type: ignore[attr-defined]  # ty: ignore[unresolved-attribute]
 
 # ---------------------------------------------------------------------------
 # Constants
