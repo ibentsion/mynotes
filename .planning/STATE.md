@@ -136,6 +136,7 @@ None yet.
 | 260515-m9x | Training stability improvements from tune run analysis: AdamW, LR schedule, early stopping, CTC padding fix, configurable blank bias, char distribution viz | 2026-05-15 | 060bb06 | [260515-m9x-training-stability-char-dist-viz](./quick/260515-m9x-training-stability-char-dist-viz/) |
 | 260515-hpo | Fix HPO tune config: patience=0 (disable early stop during HPO), max LR 3e-3→1e-3, ReduceLROnPlateau patience 3→6 | 2026-05-15 | ba8dd2c | [260515-hpo-tune-fix-patience-lr](./quick/260515-hpo-tune-fix-patience-lr/) |
 | 260526-n83 | Patch trdg 1.8.0 / Pillow 10+ incompatibility: restore ImageFont.FreeTypeFont.getsize via getbbox shim | 2026-05-26 | 852719d | [260526-n83-patch-trdg-pillow-10-incompatibility-in-](./quick/260526-n83-patch-trdg-pillow-10-incompatibility-in-/) |
+| 260526-npy | Add Gmail PDF attachment downloader script: OAuth2 auth, skips existing files, prints found/skipped/downloaded summary | 2026-05-26 | 0fa83eb | [260526-npy-download-pdfs-from-gmail-for-unlabelled-](./quick/260526-npy-download-pdfs-from-gmail-for-unlabelled-/) |
 
 ## Session Continuity
 
