@@ -5,7 +5,7 @@ milestone_name: Progress
 status: executing
 stopped_at: Completed quick/260526-o8k config.yaml plan
 last_updated: "2026-05-26T17:33:26.908Z"
-last_activity: "2026-05-26 -- Completed quick task 260526-n83: Patch trdg/Pillow 10+ incompatibility in generate_synthetic.py"
+last_activity: "2026-05-26 -- Completed quick task 260526-o8k: config.yaml for dataset ids and best hyperparams"
 progress:
   total_phases: 7
   completed_phases: 6
@@ -138,9 +138,10 @@ None yet.
 | 260526-n83 | Patch trdg 1.8.0 / Pillow 10+ incompatibility: restore ImageFont.FreeTypeFont.getsize via getbbox shim | 2026-05-26 | 852719d | [260526-n83-patch-trdg-pillow-10-incompatibility-in-](./quick/260526-n83-patch-trdg-pillow-10-incompatibility-in-/) |
 | 260526-npy | Add Gmail PDF attachment downloader script: OAuth2 auth, skips existing files, prints found/skipped/downloaded summary | 2026-05-26 | 0fa83eb | [260526-npy-download-pdfs-from-gmail-for-unlabelled-](./quick/260526-npy-download-pdfs-from-gmail-for-unlabelled-/) |
 | 260526-nk3 | Register outputs/synthetic/ as ClearML dataset; wire --synthetic_dataset_id into train_ctc (train split only) and tune | 2026-05-26 | f66399d | [260526-nk3-register-synthetic-outputs-as-clearml-da](./quick/260526-nk3-register-synthetic-outputs-as-clearml-da/) |
+| 260526-o8k | config.yaml for dataset ids and best hyperparams, auto-updated on register, read by training and tuning | 2026-05-26 | b37d21a | [260526-o8k-config-yaml-for-dataset-ids-and-best-hyp](./quick/260526-o8k-config-yaml-for-dataset-ids-and-best-hyp/) |
 
 ## Session Continuity
 
-Last session: 2026-05-26T17:33:26.898Z
-Stopped at: Completed quick/260526-o8k config.yaml plan
-Resume file: None
+Last session: 2026-05-26T00:00:00Z
+Stopped at: Completed quick task 260526-o8k: config.yaml for dataset ids and best hyperparams
+Resume file: .planning/phases/06-synthetic-generation/06-CONTEXT.md
