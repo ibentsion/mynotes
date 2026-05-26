@@ -10,7 +10,12 @@ from typing import Any
 import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
 
-from src.clearml_utils import init_task, remap_dataset_paths, upload_file_artifact
+from src.clearml_utils import (
+    init_task,
+    remap_dataset_paths,
+    remap_synthetic_paths,
+    upload_file_artifact,
+)
 
 DEBUG_SAMPLES = 5
 
@@ -130,6 +135,12 @@ def _build_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="ClearML dataset ID; downloads and remaps paths in-memory (D-09)",
+    )
+    p.add_argument(
+        "--synthetic_dataset_id",
+        type=str,
+        default=None,
+        help="ClearML dataset ID for synthetic crops; appended to train split only",
     )
     return p
 
@@ -367,6 +378,21 @@ def run_training(
     if not train_idx or not val_idx:
         raise ValueError(f"split produced empty set (train={len(train_idx)}, val={len(val_idx)}).")
 
+    # Synthetic rows bypassed build_half_page_units — forced into train only (no page_path)
+    synthetic_df: pd.DataFrame | None = None
+    if getattr(args, "synthetic_dataset_id", None) is not None:
+        from clearml import Dataset  # noqa: PLC0415
+
+        synth_manifest = (
+            Path(Dataset.get(dataset_id=args.synthetic_dataset_id).get_local_copy())
+            / "manifest.csv"
+        )
+        synth_raw = pd.read_csv(synth_manifest)
+        synthetic_df = remap_synthetic_paths(
+            synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True),
+            args.synthetic_dataset_id,
+        )
+
     device = resolve_device()  # TRAN-05
 
     augment: AugmentTransform | None = None
@@ -384,8 +410,13 @@ def run_training(
         )
         task.connect({"effective_train_size": effective_n}, name="hyperparams")
 
+    train_real_df = labeled.iloc[train_idx].reset_index(drop=True)
+    if synthetic_df is not None:
+        train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True)
+    else:
+        train_base_df = train_real_df
     train_ds = CropDataset(
-        labeled.iloc[train_idx].reset_index(drop=True),
+        train_base_df,
         charset,
         augment=augment,  # None when aug_copies=0 (D-05)
         aug_copies=args.aug_copies,
