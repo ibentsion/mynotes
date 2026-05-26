@@ -298,16 +298,16 @@ def test_enqueue_calls_execute_remotely_before_optimize(tmp_path: Path):
 
 
 def test_missing_manifest_exits_2(tmp_path: Path):
+    # Pass --dataset_id "" to prevent config.yaml real_id from triggering dataset
+    # resolution when the manifest doesn't exist.
+    cmd = [
+        sys.executable, "-m", "src.tune",
+        "--manifest", str(tmp_path / "nope.csv"),
+        "--n_trials", "0",
+        "--dataset_id", "",
+    ]
     result = subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "src.tune",
-            "--manifest",
-            str(tmp_path / "nope.csv"),
-            "--n_trials",
-            "0",
-        ],
+        cmd,
         capture_output=True,
         text=True,
         env={"CLEARML_OFFLINE_MODE": "1", "PATH": ""},
@@ -318,21 +318,7 @@ def test_missing_manifest_exits_2(tmp_path: Path):
     if result.returncode != 2:
         env = os.environ.copy()
         env["CLEARML_OFFLINE_MODE"] = "1"
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "src.tune",
-                "--manifest",
-                str(tmp_path / "nope.csv"),
-                "--n_trials",
-                "0",
-            ],
-            capture_output=True,
-            text=True,
-            env=env,
-            timeout=30,
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=30)
     assert result.returncode == 2
 
 

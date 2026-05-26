@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -23,6 +24,22 @@ def pytest_configure(config):
         print(f"\nSlow tests from last run (>{_SLOW_THRESHOLD:.0f}s):")
         for name, dur in slow:
             print(f"  {dur:6.1f}s  {name}")
+
+
+@pytest.fixture(autouse=True)
+def _no_config_yaml():
+    """Prevent config.yaml at project root from affecting tests.
+
+    Tests that call train_ctc.main() or tune.main() should not pick up dataset IDs
+    or hyperparams from the developer's local config.yaml — each test constructs its
+    own args via sys.argv. Tests that explicitly need config behavior patch load_config
+    themselves and override this autouse fixture.
+    """
+    with (
+        patch("src.train_ctc.load_config", return_value={}),
+        patch("src.tune.load_config", return_value={}),
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)

@@ -16,6 +16,7 @@ from src.clearml_utils import (
     remap_synthetic_paths,
     upload_file_artifact,
 )
+from src.run_config import load_config
 
 DEBUG_SAMPLES = 5
 
@@ -594,7 +595,16 @@ def run_training(
 
 
 def main() -> int:
+    _config = load_config()
     parser = _build_parser()
+    if _config.get("datasets"):
+        datasets = _config["datasets"]
+        parser.set_defaults(
+            dataset_id=datasets.get("real_id"),  # ty: ignore[unresolved-attribute]
+            synthetic_dataset_id=datasets.get("synthetic_id"),  # ty: ignore[unresolved-attribute]
+        )
+    if _config.get("hyperparams"):
+        parser.set_defaults(**_config["hyperparams"])  # ty: ignore[invalid-argument-type]
     args = parser.parse_args()
 
     try:

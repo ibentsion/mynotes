@@ -206,9 +206,10 @@ def test_missing_charset_exits_4(tmp_path):
 @patch("src.evaluate.Task")
 @patch("src.train_ctc.init_task")
 @patch("src.train_ctc.Task")
+@patch("src.train_ctc.load_config", return_value={})
 def test_evaluate_after_train_writes_report_with_correct_schema(
-    mock_train_task_cls, mock_train_init_task, mock_eval_task_cls, mock_eval_init_task,
-    tmp_path, capsys
+    mock_load_config, mock_train_task_cls, mock_train_init_task, mock_eval_task_cls,
+    mock_eval_init_task, tmp_path, capsys
 ):
     mock_train_task = MagicMock()
     mock_train_init_task.return_value = mock_train_task

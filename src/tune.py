@@ -22,6 +22,7 @@ import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — established pattern
 
 from src.clearml_utils import init_task
+from src.run_config import load_config, update_config
 from src.train_ctc import run_training
 
 PARAM_KEYS = (
@@ -202,7 +203,15 @@ def _write_best_params(study: optuna.Study, output_dir: Path) -> Path:
 
 
 def main() -> int:
-    args = _build_parser().parse_args()
+    _config = load_config()
+    parser = _build_parser()
+    if _config.get("datasets"):
+        datasets = _config["datasets"]
+        parser.set_defaults(
+            dataset_id=datasets.get("real_id"),  # ty: ignore[unresolved-attribute]
+            synthetic_dataset_id=datasets.get("synthetic_id"),  # ty: ignore[unresolved-attribute]
+        )
+    args = parser.parse_args()
 
     orch_task = init_task("handwriting-hebrew-ocr", "hpo_sweep", tags=["phase-5"])
     orch_task.connect(vars(args), name="sweep_config")
@@ -210,7 +219,7 @@ def main() -> int:
         orch_task.execute_remotely(queue_name=args.queue_name)
 
     # Resolve manifest from ClearML dataset when not available locally (agent path)
-    if args.dataset_id is not None and not args.manifest.exists():
+    if args.dataset_id and not args.manifest.exists():
         from clearml import Dataset  # noqa: PLC0415
 
         local_root = Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy())
@@ -233,6 +242,8 @@ def main() -> int:
 
     out_path = _write_best_params(study, args.output_dir)
     best_params = json.loads(out_path.read_text())
+    tunable = {f"hyperparams.{k}": best_params[k] for k in PARAM_KEYS if k in best_params}
+    update_config(**tunable)
     print(f"Best trial {best_params['trial_number']}: CER={best_params['best_val_cer']:.4f}")
     print(json.dumps(best_params, indent=2))
     _report_hpo_results(orch_task, study)
