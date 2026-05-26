@@ -1,6 +1,6 @@
 datasets:
   real_id: 02210b47a0534666b0462a175bf2af9d
-  synthetic_id: df83f93a6c92432394418fbcc046725c
+  synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
 hyperparams:
   aug_copies: 4
   batch_size: 8
