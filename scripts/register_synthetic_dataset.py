@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 from src.clearml_utils import maybe_create_dataset
+from src.run_config import update_config
 
 SYNTHETIC_DIR = Path("outputs/synthetic")
 DATASET_PROJECT = "handwriting-hebrew-ocr"
@@ -28,6 +29,7 @@ def main() -> int:
         files=[manifest],
     )
     print(dataset_id)
+    update_config(**{"datasets.synthetic_id": dataset_id})  # ty: ignore[invalid-argument-type]
     return 0
 
 

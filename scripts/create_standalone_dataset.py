@@ -9,6 +9,8 @@ from pathlib import Path
 
 from clearml import Dataset, Task
 
+from src.run_config import update_config
+
 MANIFEST_CACHE = Path(
     "~/.clearml/cache/storage_manager/datasets"
     "/ds_02210b47a0534666b0462a175bf2af9d/manifest.csv"
@@ -46,6 +48,7 @@ def build_dataset() -> str:
         ds.upload()
 
     ds.finalize()
+    update_config(**{"datasets.real_id": ds.id})  # ty: ignore[invalid-argument-type]
     print(f"Dataset ID: {ds.id}")
     return ds.id
 
