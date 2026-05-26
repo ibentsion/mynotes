@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from PIL import ImageFont
+from tqdm import tqdm
 
 from src.clearml_utils import init_task, upload_file_artifact  # noqa: F401
 
@@ -392,10 +393,12 @@ def _generate_until_count(
         char_counts = np.array([1])
     all_rows: list[tuple[str, str]] = []
 
-    while len(all_rows) < target:
-        text = sample_text(words, weights, int(rng.choice(char_counts)), rng)
-        rows = render_crops([text], font_paths, out_crops_dir, start_idx=len(all_rows))
-        all_rows.extend(rows)
+    with tqdm(total=target, unit="crop", desc="Generating synthetic crops") as pbar:
+        while len(all_rows) < target:
+            text = sample_text(words, weights, int(rng.choice(char_counts)), rng)
+            rows = render_crops([text], font_paths, out_crops_dir, start_idx=len(all_rows))
+            all_rows.extend(rows)
+            pbar.update(len(rows))
 
     return all_rows
 
