@@ -165,10 +165,14 @@ class AugmentTransform:
         rotation_max: float = 7.0,
         brightness_delta: float = 0.10,
         noise_sigma: float = 0.02,
+        elastic_alpha: float = 0.0,  # 0 = disabled (D-02)
+        elastic_sigma: float = 5.0,  # only used when elastic_alpha > 0
     ) -> None:
         self.rotation_max = rotation_max
         self.brightness_delta = brightness_delta
         self.noise_sigma = noise_sigma
+        self.elastic_alpha = elastic_alpha
+        self.elastic_sigma = elastic_sigma
 
     def __call__(self, tensor: torch.Tensor, seed: int | None = None) -> torch.Tensor:
         """Apply transforms to a (1, H, W) float32 tensor.
@@ -204,6 +208,34 @@ class AugmentTransform:
         # 3. Gaussian noise
         noise = torch.randn(tensor.shape, generator=rng) * self.noise_sigma
         tensor = torch.clamp(tensor + noise, 0.0, 1.0)
+
+        # 4. Elastic deformation (optional — D-02; skipped when elastic_alpha == 0)
+        if self.elastic_alpha > 0:
+            import albumentations as A  # noqa: PLC0415
+            import numpy as np  # noqa: PLC0415
+
+            transform = A.Compose(
+                [
+                    A.ElasticTransform(
+                        alpha=self.elastic_alpha,
+                        sigma=self.elastic_sigma,
+                        border_mode=0,
+                        fill=0.0,
+                        p=1.0,
+                    ),
+                    A.GridDistortion(
+                        num_steps=5,
+                        distort_limit=(-0.15, 0.15),
+                        border_mode=0,
+                        fill=0.0,
+                        p=1.0,
+                    ),
+                ]
+            )
+            img_hwc = tensor.squeeze(0).numpy()[:, :, np.newaxis]  # (H, W, 1)
+            result = transform(image=img_hwc)["image"]  # (H, W, 1) float32
+            tensor = torch.from_numpy(result[:, :, 0]).unsqueeze(0)
+            tensor = torch.clamp(tensor, 0.0, 1.0)
 
         return tensor
 

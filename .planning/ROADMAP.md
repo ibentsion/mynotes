@@ -55,14 +55,14 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Depends on**: Phase 2
 **Requirements**: TRAN-01, TRAN-02, TRAN-03, TRAN-04, TRAN-05, TRAN-06, TRAN-07, TRAN-08, EVAL-01, EVAL-02, EVAL-03, EVAL-04
 **Success Criteria** (what must be TRUE):
-  1. train_ctc.py reads only status=labeled crops, builds a dynamic Hebrew charset, and completes training on CPU
+  1. train_ctc.py reads only status=labeled crops, builds a dynamic Hebrew charset, and completes training (GPU via ClearML agent queue ofek, CPU fallback supported)
   2. Train/val split is done by page, not by crop, so no page appears in both sets
   3. Best model checkpoint and charset.json are saved to disk after training
   4. evaluate.py loads the checkpoint and writes eval_report.csv with per-crop predictions, CER, and exact match rate
   5. ClearML tasks train_baseline_ctc and evaluate_model log all metrics, artifacts, and CLI hyperparameters
 **Plans:** 2/3 plans executed
-- [x] 03-01-PLAN.md — Add torch CPU-only dependency and create src/ctc_utils.py shared module (CRNN model, charset I/O, greedy decode, CER, half-page split, collate, device resolver) with comprehensive unit tests
-- [x] 03-02-PLAN.md — Implement src/train_ctc.py CLI: filter labeled crops, build charset, half-page train/val split, CRNN+CTC training on CPU, save best checkpoint+charset, log per-epoch scalars and artifacts to ClearML task train_baseline_ctc
+- [x] 03-01-PLAN.md — Add torch dependency and create src/ctc_utils.py shared module (CRNN model, charset I/O, greedy decode, CER, half-page split, collate, device resolver) with comprehensive unit tests
+- [x] 03-02-PLAN.md — Implement src/train_ctc.py CLI: filter labeled crops, build charset, half-page train/val split, CRNN+CTC training (device auto-detected; enqueues to ClearML agent for GPU), save best checkpoint+charset, log per-epoch scalars and artifacts to ClearML task train_baseline_ctc
 - [x] 03-03-PLAN.md — Implement src/evaluate.py CLI: load checkpoint+charset, reproduce val split, run greedy CTC decode, write eval_report.csv with image_path/target/prediction/is_exact, log final CER + exact_match_rate to ClearML task evaluate_model
 
 ### Phase 6: Synthetic Generation
@@ -85,10 +85,19 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Requirements**: AUG-01, AUG-02, TRAIN-01, TRAIN-02
 **Success Criteria** (what must be TRUE):
   1. Training with `--elastic_alpha > 0` applies elastic deformation to training crops, visible in ClearML debug samples
-  2. Running `train_ctc.py --pretrain_manifest synthetic.csv --pretrain_epochs 10` executes a synthetic pre-training loop before the real-data fine-tuning loop
-  3. Pre-training val loss is computed against a held-out fraction of the synthetic set; fine-tuning val loss uses the real val set — both reported separately in ClearML
+  2. Two-call workflow: `train_ctc.py --pretrain_manifest synthetic.csv --pretrain_epochs 30` runs a
+     standalone synthetic pre-training loop and saves `checkpoint_pretrain.pt` (does NOT proceed to
+     fine-tuning); fine-tuning is a separate invocation: `train_ctc.py --manifest real.csv
+     --pretrain_checkpoint_path outputs/checkpoint_pretrain.pt` (updated per CONTEXT.md two-call decision)
+  3. Pre-training val loss is computed against a held-out random fraction of the synthetic set;
+     fine-tuning val loss uses the real page-safe val set — both reported separately in ClearML
+     with `pretrain/` series prefix for pre-training scalars
   4. `--pretrain_lr` sets the learning rate for pre-training independently of `--lr` used during fine-tuning
-**Plans**: TBD
+**Plans:** 4 plans
+- [x] 07-01-PLAN.md — Fix pre-existing test failures: fake_build_charset mock signature missing extra_words kwarg
+- [x] 07-02-PLAN.md — Add albumentations==2.0.8 dep; extend AugmentTransform with elastic_alpha/elastic_sigma params and ElasticTransform+GridDistortion path; tests
+- [x] 07-03-PLAN.md — Add --elastic_alpha/--elastic_sigma CLI flags to train_ctc.py; wire into AugmentTransform construction; update tune.py _objective Namespace; tests
+- [ ] 07-04-PLAN.md — Refactor run_training(): extract _run_loop + _run_pretrain; add pretrain CLI flags; update tune.py _build_parser; tests; update ROADMAP success criteria
 
 ## Progress
 
@@ -135,4 +144,4 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 6. Synthetic Generation | 0/? | Not started | - |
-| 7. Augmentation & Two-Stage Training | 0/? | Not started | - |
+| 7. Augmentation & Two-Stage Training | 0/4 | Not started | - |

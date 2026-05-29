@@ -126,7 +126,7 @@ def test_status_filter_keeps_only_labeled(mock_task_cls, mock_init_task, tmp_pat
 
     captured: list[list[str]] = []
 
-    def fake_build_charset(labels):
+    def fake_build_charset(labels, extra_words=None):
         captured.append(list(labels))
         return ["ש"]
 
@@ -261,7 +261,7 @@ def test_charset_build_receives_labeled_labels(
 
     received_labels: list[list[str]] = []
 
-    def capture_build_charset(labels):
+    def capture_build_charset(labels, extra_words=None):
         received_labels.append(list(labels))
         return ["א", "ב", "ג", "ד"]
 
@@ -1387,3 +1387,65 @@ def test_early_stopping_fires_before_max_epochs(mock_task_cls, tmp_path: Path, c
     epoch_lines = [line for line in captured.out.splitlines() if line.startswith("epoch=")]
     # patience=1 stops after first epoch with no improvement → far fewer than 10 epochs
     assert len(epoch_lines) < 10
+
+
+# ---------------------------------------------------------------------------
+# Elastic CLI flag tests (Plan 07-03)
+# ---------------------------------------------------------------------------
+
+
+def test_build_parser_elastic_defaults():
+    from src.train_ctc import _build_parser
+
+    args = _build_parser().parse_args(["--manifest", "m.csv"])
+    assert args.elastic_alpha == 0.0
+    assert args.elastic_sigma == 5.0
+
+
+@patch("src.train_ctc.Task")
+@patch("src.ctc_utils.AugmentTransform")
+def test_elastic_alpha_nonzero_wires_into_augment_transform(
+    mock_augment_cls, mock_task_cls, tmp_path: Path
+):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
+    # AugmentTransform mock: return a callable that accepts tensor + seed
+    mock_augment_instance = MagicMock()
+    mock_augment_instance.side_effect = lambda t, seed=None: t  # passthrough
+    mock_augment_cls.return_value = mock_augment_instance
+
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args(
+        [
+            "--manifest", str(manifest),
+            "--output_dir", str(out_dir),
+            "--epochs", "1",
+            "--batch_size", "2",
+            "--min_labeled", "12",
+            "--aug_copies", "1",
+            "--rnn_hidden", "128",
+            "--num_layers", "1",
+            "--patience", "0",
+            "--elastic_alpha", "30.0",
+            "--elastic_sigma", "6.0",
+        ]
+    )
+    run_training(args)
+
+    # AugmentTransform must have been constructed with elastic_alpha=30.0
+    mock_augment_cls.assert_called_once()
+    call_kwargs = mock_augment_cls.call_args.kwargs
+    assert call_kwargs.get("elastic_alpha") == 30.0, (
+        f"Expected elastic_alpha=30.0 in AugmentTransform constructor, got: {call_kwargs}"
+    )
+    assert call_kwargs.get("elastic_sigma") == 6.0
+
+
+def test_tune_objective_namespace_has_elastic_attrs():
+    source = Path("src/tune.py").read_text()
+    assert "elastic_alpha=0.0" in source, "tune._objective Namespace missing elastic_alpha=0.0"
+    assert "elastic_sigma=5.0" in source, "tune._objective Namespace missing elastic_sigma=5.0"

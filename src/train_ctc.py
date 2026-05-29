@@ -11,6 +11,7 @@ import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
 
 from src.clearml_utils import (
+    get_dataset_root,
     init_task,
     remap_dataset_paths,
     remap_synthetic_paths,
@@ -76,6 +77,21 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=0.02,
         help="Gaussian noise sigma for augmentation (D-02)",
+    )
+    p.add_argument(
+        "--elastic_alpha",
+        type=float,
+        default=0.0,
+        help=(
+            "Elastic deformation alpha (displacement magnitude). "
+            "0 = disabled (D-02). Try 30-80 for visible warping."
+        ),
+    )
+    p.add_argument(
+        "--elastic_sigma",
+        type=float,
+        default=5.0,
+        help="Elastic deformation sigma (smoothness). Used only when --elastic_alpha > 0.",
     )
     p.add_argument(
         "--rnn_hidden",
@@ -548,7 +564,6 @@ def _setup_finetune_loaders(
     task: Any,
 ) -> tuple[Any, Any, Any, Any, list[tuple[str, str]]]:
     """Build train/val DataLoaders for fine-tuning. Returns (train_loader, val_loader, val_df, augment, debug_samples)."""
-    import torch  # noqa: PLC0415  # noqa: F401 — imported for type in caller
     from torch.utils.data import DataLoader  # noqa: PLC0415
 
     from src.ctc_utils import AugmentTransform, CropDataset, build_half_page_units, crnn_collate, split_units  # noqa: PLC0415
@@ -562,9 +577,7 @@ def _setup_finetune_loaders(
 
     synthetic_df: Any | None = None
     if getattr(args, "synthetic_dataset_id", None) is not None:
-        from clearml import Dataset  # noqa: PLC0415
-
-        synth_manifest = Path(Dataset.get(dataset_id=args.synthetic_dataset_id).get_local_copy()) / "manifest.csv"
+        synth_manifest = get_dataset_root(args.synthetic_dataset_id) / "manifest.csv"
         synth_raw = pd.read_csv(synth_manifest)
         synthetic_df = remap_synthetic_paths(
             synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True), args.synthetic_dataset_id,
@@ -572,7 +585,7 @@ def _setup_finetune_loaders(
 
     augment: AugmentTransform | None = None
     if args.aug_copies > 0:
-        augment = AugmentTransform(rotation_max=args.rotation_max, brightness_delta=args.brightness_delta, noise_sigma=args.noise_sigma)
+        augment = AugmentTransform(rotation_max=args.rotation_max, brightness_delta=args.brightness_delta, noise_sigma=args.noise_sigma, elastic_alpha=args.elastic_alpha, elastic_sigma=args.elastic_sigma)
         effective_n = len(train_idx) * (1 + args.aug_copies)
         print(f"augmentation: aug_copies={args.aug_copies}, effective dataset size: {effective_n} (was {len(train_idx)})")
         task.connect({"effective_train_size": effective_n}, name="hyperparams")
@@ -693,11 +706,7 @@ def main() -> int:
 
     # Resolve manifest from dataset when not available locally (agent path)
     if args.dataset_id is not None and not args.manifest.exists():
-        from clearml import Dataset  # noqa: PLC0415
-
-        args.manifest = (
-            Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy()) / "manifest.csv"
-        )
+        args.manifest = get_dataset_root(args.dataset_id) / "manifest.csv"
 
     if not args.manifest.exists():
         print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)

@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: Progress
 status: executing
-stopped_at: Completed quick/260526-o8k config.yaml plan
-last_updated: "2026-05-26T17:33:26.908Z"
-last_activity: "2026-05-26 -- Completed quick task 260526-o8k: config.yaml for dataset ids and best hyperparams"
+stopped_at: context exhaustion at 99% (2026-05-29)
+last_updated: "2026-05-29T09:52:03.713Z"
+last_activity: "2026-05-29 -- Phase 07 plan 07-01 complete: fixed fake_build_charset mock signatures (green baseline)"
 progress:
   total_phases: 7
   completed_phases: 6
-  total_plans: 18
-  completed_plans: 18
-  percent: 0
+  total_plans: 22
+  completed_plans: 19
+  percent: 86
 ---
 
 # Project State
@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 ## Current Position
 
-Phase: 06 (synthetic-generation) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 06
-Last activity: 2026-05-26 -- Completed quick task 260526-n83: Patch trdg/Pillow 10+ incompatibility in generate_synthetic.py
+Phase: 07 (augmentation-and-two-stage-training) — EXECUTING
+Plan: 3 of 4
+Status: Executing Phase 07 — Plan 07-03 complete
+Last activity: 2026-05-29 -- Phase 07 plan 07-03 complete: --elastic_alpha/--elastic_sigma wired into train_ctc.py + tune.py; 3 new tests
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -72,8 +72,8 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - Region-first segmentation (not line-only): Hebrew notes have diagonal/overlapping text
-- CRNN+CTC over TrOCR: lighter, trains CPU with <300 samples
-- CPU-only for MVP: no local CUDA; dataset small enough
+- CRNN+CTC over TrOCR: lighter, trains on <300 samples
+- GPU training via ClearML agent (queue: ofek, RTX 5060, WSL2); CPU fallback retained
 - uv_build backend with src/mynotes/ layout (required for uv package builds)
 - .python-version committed (not gitignored) for tool pinning
 - [Phase 01-02]: Module-level ClearML imports (Task/Dataset) required for test patchability via src.clearml_utils.Task
@@ -139,9 +139,10 @@ None yet.
 | 260526-npy | Add Gmail PDF attachment downloader script: OAuth2 auth, skips existing files, prints found/skipped/downloaded summary | 2026-05-26 | 0fa83eb | [260526-npy-download-pdfs-from-gmail-for-unlabelled-](./quick/260526-npy-download-pdfs-from-gmail-for-unlabelled-/) |
 | 260526-nk3 | Register outputs/synthetic/ as ClearML dataset; wire --synthetic_dataset_id into train_ctc (train split only) and tune | 2026-05-26 | f66399d | [260526-nk3-register-synthetic-outputs-as-clearml-da](./quick/260526-nk3-register-synthetic-outputs-as-clearml-da/) |
 | 260526-o8k | config.yaml for dataset ids and best hyperparams, auto-updated on register, read by training and tuning | 2026-05-26 | b37d21a | [260526-o8k-config-yaml-for-dataset-ids-and-best-hyp](./quick/260526-o8k-config-yaml-for-dataset-ids-and-best-hyp/) |
+| 260526-gpu | Update all CPU-only training references to GPU via ClearML agent (queue ofek) | 2026-05-26 | ec835bb | [260526-gpu-update-cpu-training-references](./quick/260526-gpu-update-cpu-training-references/) |
 
 ## Session Continuity
 
-Last session: 2026-05-26T00:00:00Z
-Stopped at: Completed quick task 260526-o8k: config.yaml for dataset ids and best hyperparams
-Resume file: .planning/phases/06-synthetic-generation/06-CONTEXT.md
+Last session: 2026-05-29T09:52:03.705Z
+Stopped at: context exhaustion at 99% (2026-05-29)
+Resume file: None

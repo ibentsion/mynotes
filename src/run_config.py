@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import yaml
@@ -5,7 +6,10 @@ import yaml
 CONFIG_PATH = Path("config.yaml")
 
 
-def load_config(path: Path = CONFIG_PATH) -> dict[str, object]:
+def load_config(path: Path | None = None) -> dict[str, object]:
+    if path is None:
+        env_path = os.environ.get("CONFIG_PATH")
+        path = Path(env_path) if env_path else CONFIG_PATH
     if not path.exists():
         return {}
     return yaml.safe_load(path.read_text()) or {}

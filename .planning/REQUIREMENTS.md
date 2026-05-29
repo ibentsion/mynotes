@@ -43,7 +43,7 @@
 - [x] **TRAN-02**: Charset is built dynamically from labeled Hebrew text with Unicode normalization
 - [x] **TRAN-03**: Train/val split is done by page (not random crop) to prevent leakage
 - [x] **TRAN-04**: Model is CRNN: CNN feature extractor → BiLSTM → CTC loss
-- [x] **TRAN-05**: Training runs on CPU (device auto-detected via torch.device)
+- [x] **TRAN-05**: Training device auto-detected via torch.device; GPU is primary via ClearML agent (queue: ofek)
 - [x] **TRAN-06**: Best model checkpoint and charset.json are saved to disk
 - [x] **TRAN-07**: Training hyperparameters are passed via CLI and connected to ClearML via Task.connect()
 - [x] **TRAN-08**: ClearML task `train_baseline_ctc` logs: train loss, val loss, val CER per epoch; uploads checkpoint, charset.json, training config
@@ -107,7 +107,7 @@
 | Multi-user collaboration | Single user (personal notes) |
 | Language support beyond Hebrew | Out of scope for this dataset |
 | Perfect OCR accuracy at MVP | MVP goal is dataset quality, not model performance |
-| Cloud training infrastructure | CPU training is feasible at MVP scale; cloud is manual opt-in |
+| Dedicated cloud training service | Training runs on local GPU (RTX 5060) via ClearML agent (queue: ofek); no external cloud service needed |
 | Automatic bad_seg correction | Requires human judgment given irregular handwriting |
 
 ## Traceability
