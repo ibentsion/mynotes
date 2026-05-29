@@ -20,7 +20,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [ ] **Phase 2: Review & Annotation** - Streamlit review app, labeling workflow, and ClearML sync
 - [ ] **Phase 3: Training & Evaluation** - CRNN+CTC model training and CER evaluation
 - [ ] **Phase 6: Synthetic Generation** - generate_synthetic CLI, corpus assembly, and coverage validation
-- [ ] **Phase 7: Augmentation & Two-Stage Training** - Elastic augmentation and synthetic pre-training in train_ctc.py
+- [x] **Phase 7: Augmentation & Two-Stage Training** - Elastic augmentation and synthetic pre-training in train_ctc.py
 
 ## Phase Details
 
