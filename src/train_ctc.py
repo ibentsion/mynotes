@@ -419,6 +419,38 @@ def _eval_val_epoch(
     return val_loss, val_cer, blank_frac, empty_frac, per_sample_cer
 
 
+def _report_epoch_debug(
+    model: Any,
+    logger: Any,
+    charset: list[str],
+    device: Any,
+    debug_samples: list[tuple[str, str]],
+    per_sample_cer: list[tuple[str, str, str, float]],
+    epoch: int,
+) -> None:
+    """Log per-epoch debug crops, heatmaps, and saliency panel to ClearML."""
+    import torch  # noqa: PLC0415
+
+    from src.ctc_utils import load_crop, predict_single_with_probs  # noqa: PLC0415
+
+    with torch.no_grad():
+        for i, (crop_path, gt) in enumerate(debug_samples):
+            pred, probs = predict_single_with_probs(model, charset, device, crop_path)
+            print(f"[{i}] gt={gt!r} pred={pred!r}")
+            raw = load_crop(crop_path).squeeze(0).numpy()
+            _report_annotated_crop(logger, raw, gt, pred, epoch, i)
+            _report_prob_heatmap(logger, probs.cpu().numpy(), charset, gt, pred, epoch, i)
+    if per_sample_cer:
+        sorted_by_cer = sorted(per_sample_cer, key=lambda r: r[3])
+        n = len(sorted_by_cer)
+        pct_indices = [0, n // 4, n // 2, (3 * n) // 4, n - 1]
+        picks = [
+            (sorted_by_cer[idx][0], sorted_by_cer[idx][1], sorted_by_cer[idx][3])
+            for idx in pct_indices
+        ]
+        _report_saliency_panel(logger, model, charset, device, picks, epoch)
+
+
 def _run_loop(
     model: Any,
     train_loader: Any,
@@ -439,8 +471,6 @@ def _run_loop(
     on_epoch_end: Callable[[int, float], None] | None = None,
 ) -> float:
     import torch  # noqa: PLC0415
-
-    from src.ctc_utils import load_crop, predict_single_with_probs  # noqa: PLC0415
 
     best_val_cer = float("inf")
     patience_left = args.patience if args.patience > 0 else None
@@ -469,26 +499,24 @@ def _run_loop(
             charset=charset, device=device,
         )
         scheduler.step(val_cer)
-        logger.report_scalar(title="loss", series=f"{series_prefix}train", iteration=epoch, value=train_loss)
-        logger.report_scalar(title="loss", series=f"{series_prefix}val", iteration=epoch, value=val_loss)
-        logger.report_scalar(title="cer", series=f"{series_prefix}val", iteration=epoch, value=val_cer)
-        logger.report_scalar(title="blank_frac", series=f"{series_prefix}val", iteration=epoch, value=blank_frac)
-        logger.report_scalar(title="empty_frac", series=f"{series_prefix}val", iteration=epoch, value=empty_frac)
-        logger.report_scalar(title="inf_loss_count", series=f"{series_prefix}train", iteration=epoch, value=inf_count)
-        logger.report_scalar(title="lr", series=f"{series_prefix}train", iteration=epoch, value=optimizer.param_groups[0]["lr"])
-        with torch.no_grad():
-            for i, (crop_path, gt) in enumerate(debug_samples):
-                pred, probs = predict_single_with_probs(model, charset, device, crop_path)
-                print(f"[{i}] gt={gt!r} pred={pred!r}")
-                raw = load_crop(crop_path).squeeze(0).numpy()
-                _report_annotated_crop(logger, raw, gt, pred, epoch, i)
-                _report_prob_heatmap(logger, probs.cpu().numpy(), charset, gt, pred, epoch, i)
-        if per_sample_cer:
-            sorted_by_cer = sorted(per_sample_cer, key=lambda r: r[3])
-            n = len(sorted_by_cer)
-            pct_indices = [0, n // 4, n // 2, (3 * n) // 4, n - 1]
-            picks = [(sorted_by_cer[idx][0], sorted_by_cer[idx][1], sorted_by_cer[idx][3]) for idx in pct_indices]
-            _report_saliency_panel(logger, model, charset, device, picks, epoch)
+        sp = series_prefix
+        logger.report_scalar(title="loss", series=f"{sp}train", iteration=epoch, value=train_loss)
+        logger.report_scalar(title="loss", series=f"{sp}val", iteration=epoch, value=val_loss)
+        logger.report_scalar(title="cer", series=f"{sp}val", iteration=epoch, value=val_cer)
+        logger.report_scalar(
+            title="blank_frac", series=f"{sp}val", iteration=epoch, value=blank_frac,
+        )
+        logger.report_scalar(
+            title="empty_frac", series=f"{sp}val", iteration=epoch, value=empty_frac,
+        )
+        logger.report_scalar(
+            title="inf_loss_count", series=f"{sp}train", iteration=epoch, value=inf_count,
+        )
+        logger.report_scalar(
+            title="lr", series=f"{sp}train", iteration=epoch,
+            value=optimizer.param_groups[0]["lr"],
+        )
+        _report_epoch_debug(model, logger, charset, device, debug_samples, per_sample_cer, epoch)
         if val_cer < best_val_cer:
             best_val_cer = val_cer
             torch.save(model.state_dict(), checkpoint_path)
@@ -497,7 +525,11 @@ def _run_loop(
         else:
             if patience_left is not None:
                 patience_left -= 1
-        print(f"epoch={epoch} train_loss={train_loss:.4f} val_loss={val_loss:.4f} val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f} blank_frac={blank_frac:.3f} empty_frac={empty_frac:.3f} inf_loss={inf_count}")
+        print(
+            f"epoch={epoch} train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
+            f"val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f} "
+            f"blank_frac={blank_frac:.3f} empty_frac={empty_frac:.3f} inf_loss={inf_count}"
+        )
         if on_epoch_end is not None:
             on_epoch_end(epoch, val_cer)
         if patience_left is not None and patience_left == 0:
@@ -530,10 +562,20 @@ def _run_pretrain(
     train_df = synth_df.iloc[n_val:].reset_index(drop=True)
     train_ds = CropDataset(train_df, charset)
     val_ds = CropDataset(val_df_pre, charset)
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=crnn_collate, num_workers=args.num_workers)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=crnn_collate, num_workers=args.num_workers)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.pretrain_lr, weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6)
+    train_loader = DataLoader(
+        train_ds, batch_size=args.batch_size, shuffle=True,
+        collate_fn=crnn_collate, num_workers=args.num_workers,
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=args.batch_size, shuffle=False,
+        collate_fn=crnn_collate, num_workers=args.num_workers,
+    )
+    optimizer = torch.optim.AdamW(
+        model.parameters(), lr=args.pretrain_lr, weight_decay=args.weight_decay,
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6,
+    )
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
     ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
     pretrain_args = argparse.Namespace(**vars(args))
@@ -563,10 +605,16 @@ def _setup_finetune_loaders(
     charset: list[str],
     task: Any,
 ) -> tuple[Any, Any, Any, Any, list[tuple[str, str]]]:
-    """Build train/val DataLoaders for fine-tuning. Returns (train_loader, val_loader, val_df, augment, debug_samples)."""
+    """Build train/val DataLoaders for fine-tuning. Returns (loader, loader, df, aug, samples)."""
     from torch.utils.data import DataLoader  # noqa: PLC0415
 
-    from src.ctc_utils import AugmentTransform, CropDataset, build_half_page_units, crnn_collate, split_units  # noqa: PLC0415
+    from src.ctc_utils import (  # noqa: PLC0415
+        AugmentTransform,
+        CropDataset,
+        build_half_page_units,
+        crnn_collate,
+        split_units,
+    )
 
     units = build_half_page_units(labeled)
     train_keys, val_keys = split_units(units, val_frac=args.val_frac)
@@ -580,25 +628,46 @@ def _setup_finetune_loaders(
         synth_manifest = get_dataset_root(args.synthetic_dataset_id) / "manifest.csv"
         synth_raw = pd.read_csv(synth_manifest)
         synthetic_df = remap_synthetic_paths(
-            synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True), args.synthetic_dataset_id,
+            synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True),
+            args.synthetic_dataset_id,
         )
 
     augment: AugmentTransform | None = None
     if args.aug_copies > 0:
-        augment = AugmentTransform(rotation_max=args.rotation_max, brightness_delta=args.brightness_delta, noise_sigma=args.noise_sigma, elastic_alpha=args.elastic_alpha, elastic_sigma=args.elastic_sigma)
+        augment = AugmentTransform(
+            rotation_max=args.rotation_max,
+            brightness_delta=args.brightness_delta,
+            noise_sigma=args.noise_sigma,
+            elastic_alpha=args.elastic_alpha,
+            elastic_sigma=args.elastic_sigma,
+        )
         effective_n = len(train_idx) * (1 + args.aug_copies)
-        print(f"augmentation: aug_copies={args.aug_copies}, effective dataset size: {effective_n} (was {len(train_idx)})")
+        print(
+            f"augmentation: aug_copies={args.aug_copies}, "
+            f"effective dataset size: {effective_n} (was {len(train_idx)})"
+        )
         task.connect({"effective_train_size": effective_n}, name="hyperparams")
 
     train_real_df = labeled.iloc[train_idx].reset_index(drop=True)
-    train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True) if synthetic_df is not None else train_real_df
+    if synthetic_df is not None:
+        train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True)
+    else:
+        train_base_df = train_real_df
     train_ds = CropDataset(train_base_df, charset, augment=augment, aug_copies=args.aug_copies)
     val_df = labeled.iloc[val_idx].reset_index(drop=True)
     val_ds = CropDataset(val_df, charset)
     n_debug = min(DEBUG_SAMPLES, len(val_df))
-    debug_samples = [(str(val_df.iloc[i]["crop_path"]), str(val_df.iloc[i]["label"])) for i in range(n_debug)]
-    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=crnn_collate, num_workers=args.num_workers)
-    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=crnn_collate, num_workers=args.num_workers)
+    debug_samples = [
+        (str(val_df.iloc[i]["crop_path"]), str(val_df.iloc[i]["label"])) for i in range(n_debug)
+    ]
+    train_loader = DataLoader(
+        train_ds, batch_size=args.batch_size, shuffle=True,
+        collate_fn=crnn_collate, num_workers=args.num_workers,
+    )
+    val_loader = DataLoader(
+        val_ds, batch_size=args.batch_size, shuffle=False,
+        collate_fn=crnn_collate, num_workers=args.num_workers,
+    )
     return train_loader, val_loader, val_df, augment, debug_samples
 
 
@@ -627,7 +696,9 @@ def run_training(
         synth_df = pd.read_csv(args.pretrain_manifest)
         charset = build_charset(synth_df["label"].tolist())
         save_charset(args.output_dir / "charset.json", charset)
-        model = CRNN(num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers).to(device)
+        model = CRNN(
+            num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers,
+        ).to(device)
         model.fc.bias.data[0] = args.blank_bias_init
         return _run_pretrain(model, args, device, logger, task, charset)
 
@@ -646,16 +717,22 @@ def run_training(
     save_charset(args.output_dir / "charset.json", charset)
     _report_char_distribution(logger, charset, labeled["label"].tolist())
 
-    train_loader, val_loader, val_df, _, debug_samples = _setup_finetune_loaders(labeled, args, charset, task)
+    train_loader, val_loader, val_df, _, debug_samples = _setup_finetune_loaders(
+        labeled, args, charset, task,
+    )
 
-    model = CRNN(num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers).to(device)
+    model = CRNN(
+        num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers,
+    ).to(device)
     model.fc.bias.data[0] = args.blank_bias_init
     if getattr(args, "pretrain_checkpoint_path", None) is not None:
         state = torch.load(args.pretrain_checkpoint_path, weights_only=True, map_location=device)
         model.load_state_dict(state)
         print(f"Loaded pre-trained weights from {args.pretrain_checkpoint_path}")
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6,
+    )
     ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
     ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
 
