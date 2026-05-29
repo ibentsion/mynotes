@@ -81,6 +81,12 @@ def _build_parser() -> argparse.ArgumentParser:
         default=5,
         help="MedianPruner: epochs per trial before pruning kicks in (D-08)",
     )
+    p.add_argument(
+        "--pretrain_checkpoint_path",
+        type=Path,
+        default=None,
+        help="Path to pre-trained checkpoint; forwarded to each HPO trial.",
+    )
     return p
 
 
@@ -158,6 +164,10 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         noise_sigma=params["noise_sigma"],
         elastic_alpha=0.0,  # HPO does not tune elastic; safe default keeps it off (D-02)
         elastic_sigma=5.0,  # matches _build_parser default
+        pretrain_manifest=None,
+        pretrain_epochs=0,
+        pretrain_lr=1e-3,
+        pretrain_checkpoint_path=sweep_args.pretrain_checkpoint_path,  # forwarded from sweep args
     )
     train_args.output_dir.mkdir(parents=True, exist_ok=True)
 
