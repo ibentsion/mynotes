@@ -150,6 +150,31 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="ClearML dataset ID for synthetic crops; appended to train split only",
     )
+    p.add_argument(
+        "--pretrain_manifest",
+        type=Path,
+        default=None,
+        help="CSV manifest for synthetic pre-training crops. If set, runs pre-training only "
+        "and saves checkpoint_pretrain.pt.",
+    )
+    p.add_argument(
+        "--pretrain_epochs",
+        type=int,
+        default=0,
+        help="Number of pre-training epochs on synthetic data (0 = skip pre-training, D-05).",
+    )
+    p.add_argument(
+        "--pretrain_lr",
+        type=float,
+        default=1e-3,
+        help="Learning rate for pre-training (independent of --lr used for fine-tuning, D-07).",
+    )
+    p.add_argument(
+        "--pretrain_checkpoint_path",
+        type=Path,
+        default=None,
+        help="Path to checkpoint_pretrain.pt to load weights before fine-tuning (D-06).",
+    )
     return p
 
 
@@ -326,165 +351,91 @@ def _report_char_distribution(
     )
 
 
-def run_training(
+def _eval_val_epoch(
+    model: Any,
+    val_loader: Any,
+    val_df: Any,
+    *,
+    ctc_loss: Any,
+    ctc_loss_per_sample: Any,
+    charset: list[str],
+    device: Any,
+) -> tuple[float, float, float, float, list[tuple[str, str, str, float]]]:
+    """Run one val epoch; return (val_loss, val_cer, blank_frac, empty_frac, per_sample_cer)."""
+    import torch  # noqa: PLC0415
+
+    from src.ctc_utils import cer, greedy_decode  # noqa: PLC0415
+
+    val_loss_sum, val_steps = 0.0, 0
+    cer_total, cer_count = 0.0, 0
+    blank_frac_sum, empty_preds = 0.0, 0
+    per_sample_cer: list[tuple[str, str, str, float]] = []
+    dataset_idx = 0
+    with torch.no_grad():
+        for images, labels, input_lengths, target_lengths in val_loader:
+            images = images.to(device)
+            logits = model(images)
+            log_probs = logits.log_softmax(2)
+            val_loss_sum += ctc_loss(log_probs, labels, input_lengths, target_lengths).item()
+            val_steps += 1
+            blank_frac_sum += (logits.argmax(dim=2) == 0).float().mean().item()
+            offset = 0
+            for n in range(log_probs.size(1)):
+                sample_log_probs = log_probs[:, n, :]
+                pred_indices = greedy_decode(sample_log_probs)
+                pred_text = "".join(charset[i - 1] for i in pred_indices)
+                if not pred_text:
+                    empty_preds += 1
+                tgt_len = int(target_lengths[n].item())
+                tgt_indices = labels[offset : offset + tgt_len].tolist()
+                tgt_text = "".join(charset[i - 1] for i in tgt_indices)
+                offset += tgt_len
+                sample_cer = cer(tgt_text, pred_text)
+                cer_total += sample_cer
+                cer_count += 1
+                crop_path_n = str(val_df.iloc[dataset_idx + n]["crop_path"])
+                per_sample_cer.append((crop_path_n, tgt_text, pred_text, sample_cer))
+            dataset_idx += images.size(0)
+    val_loss = val_loss_sum / max(val_steps, 1)
+    val_cer = cer_total / max(cer_count, 1)
+    blank_frac = blank_frac_sum / max(val_steps, 1)
+    empty_frac = empty_preds / max(cer_count, 1)
+    return val_loss, val_cer, blank_frac, empty_frac, per_sample_cer
+
+
+def _run_loop(
+    model: Any,
+    train_loader: Any,
+    val_loader: Any,
+    val_df: Any,
+    optimizer: Any,
+    *,
+    scheduler: Any,
+    ctc_loss: Any,
+    ctc_loss_per_sample: Any,
+    device: Any,
     args: argparse.Namespace,
+    logger: Any,
+    charset: list[str],
+    checkpoint_path: Path,
+    debug_samples: list[tuple[str, str]],
+    series_prefix: str = "",
     on_epoch_end: Callable[[int, float], None] | None = None,
 ) -> float:
-    """Run train+val for args.epochs. Returns best_val_cer.
-
-    Pre-conditions: args.manifest exists; args.output_dir is writable; the caller
-    (main() or tune.py) has already initialised a ClearML task and called
-    task.connect(vars(args)). This function reads task = Task.current_task() to
-    get the logger.
-
-    on_epoch_end(epoch, val_cer) is called after each validation pass when provided.
-    Used by tune.py for Optuna pruning. If the callback raises, the exception
-    propagates and no further epochs run. The most recent best checkpoint (if any
-    was saved earlier in the loop) remains on disk.
-    """
-    import matplotlib  # noqa: PLC0415
-    matplotlib.use("Agg")
     import torch  # noqa: PLC0415
-    from torch.utils.data import DataLoader  # noqa: PLC0415
 
-    from src.ctc_utils import (  # noqa: PLC0415
-        CRNN,
-        AugmentTransform,
-        CropDataset,
-        build_charset,
-        build_half_page_units,
-        cer,
-        crnn_collate,
-        greedy_decode,
-        load_crop,
-        predict_single_with_probs,
-        resolve_device,
-        save_charset,
-        split_units,
-    )
-
-    task = Task.current_task()
-    logger = task.get_logger()
-
-    df = pd.read_csv(args.manifest)
-    labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
-
-    if args.dataset_id is not None:
-        labeled = remap_dataset_paths(labeled, args.dataset_id)
-
-    # TRAN-02: charset built from labeled labels + optional word list for stability
-    extra_words: list[str] | None = None
-    if args.words_file is not None:
-        if not args.words_file.exists():
-            raise FileNotFoundError(f"--words_file not found: {args.words_file}")
-        extra_words = args.words_file.read_text(encoding="utf-8").splitlines()
-    charset = build_charset(labeled["label"].tolist(), extra_words=extra_words)
-    save_charset(args.output_dir / "charset.json", charset)
-    _report_char_distribution(logger, charset, labeled["label"].tolist())
-
-    # TRAN-03: half-page split (D-03 + D-04)
-    units = build_half_page_units(labeled)
-    train_keys, val_keys = split_units(units, val_frac=args.val_frac)
-    train_idx = [i for k in train_keys for i in units[k]]
-    val_idx = [i for k in val_keys for i in units[k]]
-
-    if not train_idx or not val_idx:
-        raise ValueError(f"split produced empty set (train={len(train_idx)}, val={len(val_idx)}).")
-
-    # Synthetic rows bypassed build_half_page_units — forced into train only (no page_path)
-    synthetic_df: pd.DataFrame | None = None
-    if getattr(args, "synthetic_dataset_id", None) is not None:
-        from clearml import Dataset  # noqa: PLC0415
-
-        synth_manifest = (
-            Path(Dataset.get(dataset_id=args.synthetic_dataset_id).get_local_copy())
-            / "manifest.csv"
-        )
-        synth_raw = pd.read_csv(synth_manifest)
-        synthetic_df = remap_synthetic_paths(
-            synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True),
-            args.synthetic_dataset_id,
-        )
-
-    device = resolve_device()  # TRAN-05
-
-    augment: AugmentTransform | None = None
-    if args.aug_copies > 0:
-        augment = AugmentTransform(
-            rotation_max=args.rotation_max,
-            brightness_delta=args.brightness_delta,
-            noise_sigma=args.noise_sigma,
-        )
-        effective_n = len(train_idx) * (1 + args.aug_copies)
-        print(
-            f"augmentation: aug_copies={args.aug_copies}, "
-            f"effective dataset size: {effective_n} "
-            f"(was {len(train_idx)})"
-        )
-        task.connect({"effective_train_size": effective_n}, name="hyperparams")
-
-    train_real_df = labeled.iloc[train_idx].reset_index(drop=True)
-    if synthetic_df is not None:
-        train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True)
-    else:
-        train_base_df = train_real_df
-    train_ds = CropDataset(
-        train_base_df,
-        charset,
-        augment=augment,  # None when aug_copies=0 (D-05)
-        aug_copies=args.aug_copies,
-    )
-    val_df = labeled.iloc[val_idx].reset_index(drop=True)
-    val_ds = CropDataset(val_df, charset)  # no augment — D-04 val always clean
-    n_debug = min(DEBUG_SAMPLES, len(val_df))
-    debug_samples = [
-        (str(val_df.iloc[i]["crop_path"]), str(val_df.iloc[i]["label"])) for i in range(n_debug)
-    ]
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=args.batch_size,
-        shuffle=True,
-        collate_fn=crnn_collate,
-        num_workers=args.num_workers,
-    )
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=crnn_collate,
-        num_workers=args.num_workers,
-    )
-
-    model = CRNN(  # TRAN-04 (+1 for blank)
-        num_classes=len(charset) + 1,
-        rnn_hidden=args.rnn_hidden,
-        num_layers=args.num_layers,
-    ).to(device)
-    # Blank index 0 starts with a negative bias so the model doesn't immediately
-    # collapse to predicting all-blank. The optimizer can move this freely after
-    # the first few epochs once non-blank representations have formed.
-    # Real characters (space, niqqud, etc.) don't need bias — only the synthetic CTC blank.
-    model.fc.bias.data[0] = args.blank_bias_init
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6
-    )
-    ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
-    ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
+    from src.ctc_utils import load_crop, predict_single_with_probs  # noqa: PLC0415
 
     best_val_cer = float("inf")
-    checkpoint_path = args.output_dir / "checkpoint.pt"
     patience_left = args.patience if args.patience > 0 else None
-
     for epoch in range(args.epochs):
-        # --- train ---
         model.train()
         train_loss_sum, train_steps, inf_count = 0.0, 0, 0
         for images, labels, input_lengths, target_lengths in train_loader:
             images = images.to(device)
             optimizer.zero_grad()
-            logits = model(images)  # (T, N, C)
-            log_probs = logits.log_softmax(2)  # Pitfall 4
+            logits = model(images)
+            log_probs = logits.log_softmax(2)
             loss = ctc_loss(log_probs, labels, input_lengths, target_lengths)
             with torch.no_grad():
                 per_sample = ctc_loss_per_sample(log_probs, labels, input_lengths, target_lengths)
@@ -495,114 +446,217 @@ def run_training(
             train_loss_sum += loss.item()
             train_steps += 1
         train_loss = train_loss_sum / max(train_steps, 1)
-
-        # --- val ---
         model.eval()
-        val_loss_sum, val_steps = 0.0, 0
-        cer_total, cer_count = 0.0, 0
-        blank_frac_sum, empty_preds = 0.0, 0
-        per_sample_cer: list[tuple[str, str, str, float]] = []
-        dataset_idx = 0
-        with torch.no_grad():
-            for images, labels, input_lengths, target_lengths in val_loader:
-                images = images.to(device)
-                logits = model(images)
-                log_probs = logits.log_softmax(2)
-                val_loss_sum += ctc_loss(log_probs, labels, input_lengths, target_lengths).item()
-                val_steps += 1
-                blank_frac_sum += (logits.argmax(dim=2) == 0).float().mean().item()
-                # Per-sample CER
-                offset = 0
-                for n in range(log_probs.size(1)):
-                    sample_log_probs = log_probs[:, n, :]  # (T, C)
-                    pred_indices = greedy_decode(sample_log_probs)  # list[int]
-                    pred_text = "".join(charset[i - 1] for i in pred_indices)
-                    if not pred_text:
-                        empty_preds += 1
-                    tgt_len = int(target_lengths[n].item())
-                    tgt_indices = labels[offset : offset + tgt_len].tolist()
-                    tgt_text = "".join(charset[i - 1] for i in tgt_indices)
-                    offset += tgt_len
-                    sample_cer = cer(tgt_text, pred_text)
-                    cer_total += sample_cer
-                    cer_count += 1
-                    crop_path_n = str(val_df.iloc[dataset_idx + n]["crop_path"])
-                    per_sample_cer.append((crop_path_n, tgt_text, pred_text, sample_cer))
-                dataset_idx += images.size(0)
-        val_loss = val_loss_sum / max(val_steps, 1)
-        val_cer = cer_total / max(cer_count, 1)
-        blank_frac = blank_frac_sum / max(val_steps, 1)
-        empty_frac = empty_preds / max(cer_count, 1)
-
+        val_loss, val_cer, blank_frac, empty_frac, per_sample_cer = _eval_val_epoch(
+            model, val_loader, val_df,
+            ctc_loss=ctc_loss, ctc_loss_per_sample=ctc_loss_per_sample,
+            charset=charset, device=device,
+        )
         scheduler.step(val_cer)
-
-        # TRAN-08: report scalars
-        logger.report_scalar(title="loss", series="train", iteration=epoch, value=train_loss)
-        logger.report_scalar(title="loss", series="val", iteration=epoch, value=val_loss)
-        logger.report_scalar(title="cer", series="val", iteration=epoch, value=val_cer)
-        logger.report_scalar(title="blank_frac", series="val", iteration=epoch, value=blank_frac)
-        logger.report_scalar(title="empty_frac", series="val", iteration=epoch, value=empty_frac)
-        logger.report_scalar(
-            title="inf_loss_count", series="train", iteration=epoch, value=inf_count
-        )
-        logger.report_scalar(
-            title="lr", series="train", iteration=epoch,
-            value=optimizer.param_groups[0]["lr"],
-        )
-
+        logger.report_scalar(title="loss", series=f"{series_prefix}train", iteration=epoch, value=train_loss)
+        logger.report_scalar(title="loss", series=f"{series_prefix}val", iteration=epoch, value=val_loss)
+        logger.report_scalar(title="cer", series=f"{series_prefix}val", iteration=epoch, value=val_cer)
+        logger.report_scalar(title="blank_frac", series=f"{series_prefix}val", iteration=epoch, value=blank_frac)
+        logger.report_scalar(title="empty_frac", series=f"{series_prefix}val", iteration=epoch, value=empty_frac)
+        logger.report_scalar(title="inf_loss_count", series=f"{series_prefix}train", iteration=epoch, value=inf_count)
+        logger.report_scalar(title="lr", series=f"{series_prefix}train", iteration=epoch, value=optimizer.param_groups[0]["lr"])
         with torch.no_grad():
             for i, (crop_path, gt) in enumerate(debug_samples):
                 pred, probs = predict_single_with_probs(model, charset, device, crop_path)
                 print(f"[{i}] gt={gt!r} pred={pred!r}")
-                raw = load_crop(crop_path).squeeze(0).numpy()  # (H, W) float [0, 1]
+                raw = load_crop(crop_path).squeeze(0).numpy()
                 _report_annotated_crop(logger, raw, gt, pred, epoch, i)
-                _report_prob_heatmap(
-                    logger, probs.cpu().numpy(), charset, gt, pred, epoch, i
-                )
-
+                _report_prob_heatmap(logger, probs.cpu().numpy(), charset, gt, pred, epoch, i)
         if per_sample_cer:
             sorted_by_cer = sorted(per_sample_cer, key=lambda r: r[3])
             n = len(sorted_by_cer)
             pct_indices = [0, n // 4, n // 2, (3 * n) // 4, n - 1]
-            picks = [
-                (sorted_by_cer[idx][0], sorted_by_cer[idx][1], sorted_by_cer[idx][3])
-                for idx in pct_indices
-            ]
+            picks = [(sorted_by_cer[idx][0], sorted_by_cer[idx][1], sorted_by_cer[idx][3]) for idx in pct_indices]
             _report_saliency_panel(logger, model, charset, device, picks, epoch)
-
         if val_cer < best_val_cer:
             best_val_cer = val_cer
-            torch.save(model.state_dict(), checkpoint_path)  # TRAN-06
+            torch.save(model.state_dict(), checkpoint_path)
             if patience_left is not None:
                 patience_left = args.patience
         else:
             if patience_left is not None:
                 patience_left -= 1
-
-        print(
-            f"epoch={epoch} train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
-            f"val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f} "
-            f"blank_frac={blank_frac:.3f} empty_frac={empty_frac:.3f} inf_loss={inf_count}"
-        )
-
+        print(f"epoch={epoch} train_loss={train_loss:.4f} val_loss={val_loss:.4f} val_cer={val_cer:.4f} best_val_cer={best_val_cer:.4f} blank_frac={blank_frac:.3f} empty_frac={empty_frac:.3f} inf_loss={inf_count}")
         if on_epoch_end is not None:
             on_epoch_end(epoch, val_cer)
-
         if patience_left is not None and patience_left == 0:
             print(f"Early stop at epoch={epoch}: patience={args.patience} exhausted.")
             break
-
-    # Restore best weights so caller gets the best model, not the last epoch
     if checkpoint_path.exists():
-        model.load_state_dict(
-            torch.load(checkpoint_path, weights_only=True, map_location=device)
+        model.load_state_dict(torch.load(checkpoint_path, weights_only=True, map_location=device))
+    return best_val_cer
+
+
+def _run_pretrain(
+    model: Any,
+    args: argparse.Namespace,
+    device: Any,
+    logger: Any,
+    task: Any,
+    charset: list[str],
+) -> float:
+    import math  # noqa: PLC0415
+
+    import torch  # noqa: PLC0415
+    from torch.utils.data import DataLoader  # noqa: PLC0415
+
+    from src.ctc_utils import CropDataset, crnn_collate  # noqa: PLC0415
+
+    synth_df = pd.read_csv(args.pretrain_manifest)
+    n = len(synth_df)
+    n_val = max(1, math.ceil(n * args.val_frac))
+    val_df_pre = synth_df.iloc[:n_val].reset_index(drop=True)
+    train_df = synth_df.iloc[n_val:].reset_index(drop=True)
+    train_ds = CropDataset(train_df, charset)
+    val_ds = CropDataset(val_df_pre, charset)
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=crnn_collate, num_workers=args.num_workers)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=crnn_collate, num_workers=args.num_workers)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.pretrain_lr, weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6)
+    ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
+    ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
+    pretrain_args = argparse.Namespace(**vars(args))
+    pretrain_args.epochs = args.pretrain_epochs
+    checkpoint_pretrain_path = args.output_dir / "checkpoint_pretrain.pt"
+    best_pretrain_cer = _run_loop(
+        model, train_loader, val_loader, val_df_pre, optimizer,
+        scheduler=scheduler,
+        ctc_loss=ctc_loss,
+        ctc_loss_per_sample=ctc_loss_per_sample,
+        device=device,
+        args=pretrain_args,
+        logger=logger,
+        charset=charset,
+        checkpoint_path=checkpoint_pretrain_path,
+        debug_samples=[],
+        series_prefix="pretrain/",
+        on_epoch_end=None,
+    )
+    upload_file_artifact(task, "checkpoint_pretrain", checkpoint_pretrain_path)
+    return best_pretrain_cer
+
+
+def _setup_finetune_loaders(
+    labeled: Any,
+    args: argparse.Namespace,
+    charset: list[str],
+    task: Any,
+) -> tuple[Any, Any, Any, Any, list[tuple[str, str]]]:
+    """Build train/val DataLoaders for fine-tuning. Returns (train_loader, val_loader, val_df, augment, debug_samples)."""
+    import torch  # noqa: PLC0415  # noqa: F401 — imported for type in caller
+    from torch.utils.data import DataLoader  # noqa: PLC0415
+
+    from src.ctc_utils import AugmentTransform, CropDataset, build_half_page_units, crnn_collate, split_units  # noqa: PLC0415
+
+    units = build_half_page_units(labeled)
+    train_keys, val_keys = split_units(units, val_frac=args.val_frac)
+    train_idx = [i for k in train_keys for i in units[k]]
+    val_idx = [i for k in val_keys for i in units[k]]
+    if not train_idx or not val_idx:
+        raise ValueError(f"split produced empty set (train={len(train_idx)}, val={len(val_idx)}).")
+
+    synthetic_df: Any | None = None
+    if getattr(args, "synthetic_dataset_id", None) is not None:
+        from clearml import Dataset  # noqa: PLC0415
+
+        synth_manifest = Path(Dataset.get(dataset_id=args.synthetic_dataset_id).get_local_copy()) / "manifest.csv"
+        synth_raw = pd.read_csv(synth_manifest)
+        synthetic_df = remap_synthetic_paths(
+            synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True), args.synthetic_dataset_id,
         )
 
-    # TRAN-08: artifact uploads at end of training
+    augment: AugmentTransform | None = None
+    if args.aug_copies > 0:
+        augment = AugmentTransform(rotation_max=args.rotation_max, brightness_delta=args.brightness_delta, noise_sigma=args.noise_sigma)
+        effective_n = len(train_idx) * (1 + args.aug_copies)
+        print(f"augmentation: aug_copies={args.aug_copies}, effective dataset size: {effective_n} (was {len(train_idx)})")
+        task.connect({"effective_train_size": effective_n}, name="hyperparams")
+
+    train_real_df = labeled.iloc[train_idx].reset_index(drop=True)
+    train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True) if synthetic_df is not None else train_real_df
+    train_ds = CropDataset(train_base_df, charset, augment=augment, aug_copies=args.aug_copies)
+    val_df = labeled.iloc[val_idx].reset_index(drop=True)
+    val_ds = CropDataset(val_df, charset)
+    n_debug = min(DEBUG_SAMPLES, len(val_df))
+    debug_samples = [(str(val_df.iloc[i]["crop_path"]), str(val_df.iloc[i]["label"])) for i in range(n_debug)]
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, collate_fn=crnn_collate, num_workers=args.num_workers)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, collate_fn=crnn_collate, num_workers=args.num_workers)
+    return train_loader, val_loader, val_df, augment, debug_samples
+
+
+def run_training(
+    args: argparse.Namespace,
+    on_epoch_end: Callable[[int, float], None] | None = None,
+) -> float:
+    """Run fine-tuning on labeled crops. Returns best_val_cer.
+
+    If args.pretrain_manifest is set, runs synthetic pre-training only and returns
+    without fine-tuning (two-call interface — D-05).
+    on_epoch_end(epoch, val_cer) is called after each val pass when provided.
+    """
+    import matplotlib  # noqa: PLC0415
+    matplotlib.use("Agg")
+    import torch  # noqa: PLC0415
+
+    from src.ctc_utils import CRNN, build_charset, resolve_device, save_charset  # noqa: PLC0415
+
+    task = Task.current_task()
+    logger = task.get_logger()
+    device = resolve_device()
+
+    # Pre-train path: build charset from synthetic manifest, train, return (D-05)
+    if getattr(args, "pretrain_manifest", None) is not None:
+        synth_df = pd.read_csv(args.pretrain_manifest)
+        charset = build_charset(synth_df["label"].tolist())
+        save_charset(args.output_dir / "charset.json", charset)
+        model = CRNN(num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers).to(device)
+        model.fc.bias.data[0] = args.blank_bias_init
+        return _run_pretrain(model, args, device, logger, task, charset)
+
+    # Fine-tune path
+    df = pd.read_csv(args.manifest)
+    labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
+    if args.dataset_id is not None:
+        labeled = remap_dataset_paths(labeled, args.dataset_id)
+
+    extra_words: list[str] | None = None
+    if args.words_file is not None:
+        if not args.words_file.exists():
+            raise FileNotFoundError(f"--words_file not found: {args.words_file}")
+        extra_words = args.words_file.read_text(encoding="utf-8").splitlines()
+    charset = build_charset(labeled["label"].tolist(), extra_words=extra_words)
+    save_charset(args.output_dir / "charset.json", charset)
+    _report_char_distribution(logger, charset, labeled["label"].tolist())
+
+    train_loader, val_loader, val_df, _, debug_samples = _setup_finetune_loaders(labeled, args, charset, task)
+
+    model = CRNN(num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers).to(device)
+    model.fc.bias.data[0] = args.blank_bias_init
+    if getattr(args, "pretrain_checkpoint_path", None) is not None:
+        state = torch.load(args.pretrain_checkpoint_path, weights_only=True, map_location=device)
+        model.load_state_dict(state)
+        print(f"Loaded pre-trained weights from {args.pretrain_checkpoint_path}")
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6)
+    ctc_loss = torch.nn.CTCLoss(blank=0, zero_infinity=True, reduction="mean")
+    ctc_loss_per_sample = torch.nn.CTCLoss(blank=0, zero_infinity=False, reduction="none")
+
+    checkpoint_path = args.output_dir / "checkpoint.pt"
+    best_val_cer = _run_loop(
+        model, train_loader, val_loader, val_df, optimizer,
+        scheduler=scheduler, ctc_loss=ctc_loss, ctc_loss_per_sample=ctc_loss_per_sample,
+        device=device, args=args, logger=logger, charset=charset,
+        checkpoint_path=checkpoint_path, debug_samples=debug_samples,
+        series_prefix="", on_epoch_end=on_epoch_end,
+    )
     if checkpoint_path.exists():
         upload_file_artifact(task, "checkpoint", checkpoint_path)
     upload_file_artifact(task, "charset", args.output_dir / "charset.json")
-
     return best_val_cer
 
 
