@@ -25,10 +25,10 @@ See: .planning/PROJECT.md (updated 2026-04-21)
 
 ## Current Position
 
-Phase: 07 (augmentation-and-two-stage-training) — PLANNED
-Plan: 0 of 4
-Status: Ready to execute Phase 07
-Last activity: 2026-05-26 -- Phase 07 planning complete: 4 plans (07-01 through 07-04)
+Phase: 07 (augmentation-and-two-stage-training) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 07 — Plan 07-01 complete
+Last activity: 2026-05-29 -- Phase 07 plan 07-01 complete: fixed fake_build_charset mock signatures (green baseline)
 
 Progress: [░░░░░░░░░░] 0%
 
