@@ -126,7 +126,7 @@ def test_status_filter_keeps_only_labeled(mock_task_cls, mock_init_task, tmp_pat
 
     captured: list[list[str]] = []
 
-    def fake_build_charset(labels):
+    def fake_build_charset(labels, extra_words=None):
         captured.append(list(labels))
         return ["ש"]
 
@@ -261,7 +261,7 @@ def test_charset_build_receives_labeled_labels(
 
     received_labels: list[list[str]] = []
 
-    def capture_build_charset(labels):
+    def capture_build_charset(labels, extra_words=None):
         received_labels.append(list(labels))
         return ["א", "ב", "ג", "ד"]
 
