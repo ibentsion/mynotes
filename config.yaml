@@ -2,15 +2,15 @@ datasets:
   real_id: 02210b47a0534666b0462a175bf2af9d
   synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
 hyperparams:
-  aug_copies: 4
-  batch_size: 8
+  aug_copies: 1
+  batch_size: 4
   blank_bias_init: -2.0
-  brightness_delta: 0.1
-  epochs: 30
-  lr: 0.001
-  noise_sigma: 0.02
-  num_layers: 2
+  brightness_delta: 0.14142788555774344
+  epochs: 34
+  lr: 0.00032805592833899737
+  noise_sigma: 0.04403535313506804
+  num_layers: 1
   patience: 5
-  rnn_hidden: 256
-  rotation_max: 7.0
+  rnn_hidden: 128
+  rotation_max: 3.53209174676604
   weight_decay: 0.0001

@@ -11,7 +11,6 @@ import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — RESEARCH.md Pattern 6
 
 from src.clearml_utils import (
-    get_dataset_root,
     init_task,
     remap_dataset_paths,
     remap_synthetic_paths,
@@ -625,7 +624,12 @@ def _setup_finetune_loaders(
 
     synthetic_df: Any | None = None
     if getattr(args, "synthetic_dataset_id", None) is not None:
-        synth_manifest = get_dataset_root(args.synthetic_dataset_id) / "manifest.csv"
+        from clearml import Dataset  # noqa: PLC0415
+
+        synth_manifest = (
+            Path(Dataset.get(dataset_id=args.synthetic_dataset_id).get_local_copy())
+            / "manifest.csv"
+        )
         synth_raw = pd.read_csv(synth_manifest)
         synthetic_df = remap_synthetic_paths(
             synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True),
@@ -783,7 +787,11 @@ def main() -> int:
 
     # Resolve manifest from dataset when not available locally (agent path)
     if args.dataset_id is not None and not args.manifest.exists():
-        args.manifest = get_dataset_root(args.dataset_id) / "manifest.csv"
+        from clearml import Dataset  # noqa: PLC0415
+
+        args.manifest = (
+            Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy()) / "manifest.csv"
+        )
 
     if not args.manifest.exists():
         print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
