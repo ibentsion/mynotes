@@ -1449,3 +1449,175 @@ def test_tune_objective_namespace_has_elastic_attrs():
     source = Path("src/tune.py").read_text()
     assert "elastic_alpha=0.0" in source, "tune._objective Namespace missing elastic_alpha=0.0"
     assert "elastic_sigma=5.0" in source, "tune._objective Namespace missing elastic_sigma=5.0"
+
+
+# ---------------------------------------------------------------------------
+# Pre-training two-stage tests (Plan 07-04)
+# ---------------------------------------------------------------------------
+
+
+def _make_synthetic_manifest(tmp_path: Path, n: int = 6) -> Path:
+    """Build minimal synthetic manifest with n labeled rows (no page_path)."""
+    labels = ["א", "ב", "ג", "ד", "ה", "ו"][:n]
+    rows = []
+    for i, lab in enumerate(labels):
+        crop = tmp_path / f"synth_{i}.png"
+        _make_grayscale_png(crop, h=8, w=128)
+        rows.append({
+            "crop_path": str(crop),
+            "pdf_path": "",
+            "page_path": "",
+            "page_num": 0,
+            "x": 0,
+            "y": i * 10,
+            "w": 128,
+            "h": 8,
+            "area": 1024,
+            "is_flagged": False,
+            "flag_reasons": "",
+            "status": "labeled",
+            "label": lab,
+            "notes": "",
+        })
+    manifest = tmp_path / "synth_manifest.csv"
+    pd.DataFrame(rows).to_csv(manifest, index=False)
+    return manifest
+
+
+def test_build_parser_pretrain_flags_defaults():
+    from src.train_ctc import _build_parser
+
+    args = _build_parser().parse_args(["--manifest", "m.csv"])
+    assert args.pretrain_manifest is None
+    assert args.pretrain_epochs == 0
+    assert args.pretrain_lr == pytest.approx(1e-3)
+    assert args.pretrain_checkpoint_path is None
+
+
+@patch("src.train_ctc.Task")
+def test_pretrain_mode_runs_without_real_manifest(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
+    synth_manifest = _make_synthetic_manifest(tmp_path, n=6)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args(
+        [
+            "--manifest", "data/manifest.csv",  # does not exist — should NOT be read
+            "--pretrain_manifest", str(synth_manifest),
+            "--pretrain_epochs", "1",
+            "--output_dir", str(out_dir),
+            "--batch_size", "2",
+            "--rnn_hidden", "128",
+            "--num_layers", "1",
+            "--patience", "0",
+        ]
+    )
+    result = run_training(args)
+    assert isinstance(result, float)
+    assert (out_dir / "checkpoint_pretrain.pt").exists()
+
+
+@patch("src.train_ctc.Task")
+def test_pretrain_mode_does_not_proceed_to_finetune(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
+    synth_manifest = _make_synthetic_manifest(tmp_path, n=6)
+    out_dir = tmp_path / "out"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args(
+        [
+            "--manifest", "data/manifest.csv",
+            "--pretrain_manifest", str(synth_manifest),
+            "--pretrain_epochs", "1",
+            "--output_dir", str(out_dir),
+            "--batch_size", "2",
+            "--rnn_hidden", "128",
+            "--num_layers", "1",
+            "--patience", "0",
+        ]
+    )
+    # build_half_page_units must not be called (fine-tune path not entered)
+    build_called = [False]
+
+    def _raise(*a, **kw):
+        build_called[0] = True
+        raise RuntimeError("build_half_page_units must not be called in pretrain mode")
+
+    with patch("src.ctc_utils.build_half_page_units", side_effect=_raise):
+        run_training(args)  # should NOT raise
+
+    assert not build_called[0], "build_half_page_units was called — pretrain mode entered finetune path"
+
+
+@patch("src.train_ctc.Task")
+def test_finetune_loads_pretrain_checkpoint_path(mock_task_cls, tmp_path: Path):
+    import torch
+
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.train_ctc import _build_parser, run_training
+    from src.ctc_utils import CRNN, build_charset
+
+    # Build a CRNN with the same charset size the manifest will produce
+    df = pd.read_csv(manifest)
+    labeled = df[df["status"] == "labeled"]
+    charset = build_charset(labeled["label"].tolist())
+    model = CRNN(num_classes=len(charset) + 1, rnn_hidden=128, num_layers=1)
+    ckpt_path = tmp_path / "checkpoint_pretrain.pt"
+    torch.save(model.state_dict(), ckpt_path)
+
+    args = _build_parser().parse_args(
+        [
+            "--manifest", str(manifest),
+            "--output_dir", str(out_dir),
+            "--pretrain_checkpoint_path", str(ckpt_path),
+            "--epochs", "1",
+            "--batch_size", "2",
+            "--min_labeled", "12",
+            "--aug_copies", "0",
+            "--rnn_hidden", "128",
+            "--num_layers", "1",
+            "--patience", "0",
+        ]
+    )
+    result = run_training(args)
+    assert isinstance(result, float)
+
+
+@patch("src.train_ctc.Task")
+def test_run_training_on_epoch_end_still_fires_in_finetune(mock_task_cls, tmp_path: Path):
+    mock_task = MagicMock()
+    mock_task_cls.current_task.return_value = mock_task
+    manifest, out_dir = _make_labeled_manifest(tmp_path)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    from src.train_ctc import _build_parser, run_training
+
+    args = _build_parser().parse_args(
+        [
+            "--manifest", str(manifest),
+            "--output_dir", str(out_dir),
+            "--epochs", "1",
+            "--batch_size", "2",
+            "--min_labeled", "12",
+            "--aug_copies", "0",
+            "--rnn_hidden", "128",
+            "--num_layers", "1",
+            "--patience", "0",
+        ]
+    )
+    calls: list[tuple[int, float]] = []
+    run_training(args, on_epoch_end=lambda ep, cer: calls.append((ep, cer)))
+    assert len(calls) == 1
+    assert calls[0][0] == 0
+    assert isinstance(calls[0][1], float)
