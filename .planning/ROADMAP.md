@@ -97,7 +97,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] 07-01-PLAN.md — Fix pre-existing test failures: fake_build_charset mock signature missing extra_words kwarg
 - [x] 07-02-PLAN.md — Add albumentations==2.0.8 dep; extend AugmentTransform with elastic_alpha/elastic_sigma params and ElasticTransform+GridDistortion path; tests
 - [x] 07-03-PLAN.md — Add --elastic_alpha/--elastic_sigma CLI flags to train_ctc.py; wire into AugmentTransform construction; update tune.py _objective Namespace; tests
-- [ ] 07-04-PLAN.md — Refactor run_training(): extract _run_loop + _run_pretrain; add pretrain CLI flags; update tune.py _build_parser; tests; update ROADMAP success criteria
+- [x] 07-04-PLAN.md — Refactor run_training(): extract _run_loop + _run_pretrain; add pretrain CLI flags; update tune.py _build_parser; tests; update ROADMAP success criteria
 
 ## Progress
 
