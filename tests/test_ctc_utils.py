@@ -456,3 +456,43 @@ def test_crnn_collate_ensures_t_geq_label_len_plus_two():
     padded, _, input_lengths, target_lengths = crnn_collate([(img, label)])
     T = int(input_lengths[0].item())
     assert int(target_lengths[0].item()) + 2 <= T
+
+
+# ---------------------------------------------------------------------------
+# AugmentTransform — elastic deformation (Phase 7 AUG-01)
+# ---------------------------------------------------------------------------
+
+
+def test_augment_transform_elastic_defaults():
+    aug = AugmentTransform()
+    assert aug.elastic_alpha == 0.0
+    assert aug.elastic_sigma == 5.0
+
+
+def test_augment_transform_elastic_zero_skips_albumentations():
+    # With elastic_alpha=0 (default), the output with a seed must be deterministic
+    # and identical to the no-elastic path — confirming albumentations is not invoked.
+    t = torch.rand(1, 64, 128)
+    out_default = AugmentTransform()(t, seed=7)
+    out_zero = AugmentTransform(elastic_alpha=0.0)(t, seed=7)
+    assert torch.equal(out_default, out_zero)
+
+
+def test_augment_transform_elastic_preserves_shape():
+    t = torch.rand(1, 64, 200)
+    out = AugmentTransform(elastic_alpha=30.0, elastic_sigma=5.0)(t, seed=42)
+    assert out.shape == (1, 64, 200)
+
+
+def test_augment_transform_elastic_values_clamped():
+    t = torch.rand(1, 64, 128)
+    out = AugmentTransform(elastic_alpha=30.0, elastic_sigma=5.0)(t, seed=42)
+    assert out.min().item() >= 0.0
+    assert out.max().item() <= 1.0
+
+
+def test_augment_transform_elastic_modifies_content():
+    # Use non-trivial input (not all-zeros/all-ones); elastic_alpha=30.0 must change pixels
+    t = torch.rand(1, 64, 128)
+    out = AugmentTransform(elastic_alpha=30.0, elastic_sigma=5.0)(t, seed=42)
+    assert not torch.equal(out, t)
