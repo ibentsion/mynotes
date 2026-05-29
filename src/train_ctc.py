@@ -79,6 +79,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Gaussian noise sigma for augmentation (D-02)",
     )
     p.add_argument(
+        "--elastic_alpha",
+        type=float,
+        default=0.0,
+        help=(
+            "Elastic deformation alpha (displacement magnitude). "
+            "0 = disabled (D-02). Try 30-80 for visible warping."
+        ),
+    )
+    p.add_argument(
+        "--elastic_sigma",
+        type=float,
+        default=5.0,
+        help="Elastic deformation sigma (smoothness). Used only when --elastic_alpha > 0.",
+    )
+    p.add_argument(
         "--rnn_hidden",
         type=int,
         default=256,
@@ -410,6 +425,8 @@ def run_training(
             rotation_max=args.rotation_max,
             brightness_delta=args.brightness_delta,
             noise_sigma=args.noise_sigma,
+            elastic_alpha=args.elastic_alpha,
+            elastic_sigma=args.elastic_sigma,
         )
         effective_n = len(train_idx) * (1 + args.aug_copies)
         print(
