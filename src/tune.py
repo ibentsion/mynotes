@@ -156,6 +156,8 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         rotation_max=params["rotation_max"],
         brightness_delta=params["brightness_delta"],
         noise_sigma=params["noise_sigma"],
+        elastic_alpha=0.0,  # HPO does not tune elastic; safe default keeps it off (D-02)
+        elastic_sigma=5.0,  # matches _build_parser default
     )
     train_args.output_dir.mkdir(parents=True, exist_ok=True)
 

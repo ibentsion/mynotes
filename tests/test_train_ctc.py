@@ -1403,7 +1403,7 @@ def test_build_parser_elastic_defaults():
 
 
 @patch("src.train_ctc.Task")
-@patch("src.train_ctc.AugmentTransform")
+@patch("src.ctc_utils.AugmentTransform")
 def test_elastic_alpha_nonzero_wires_into_augment_transform(
     mock_augment_cls, mock_task_cls, tmp_path: Path
 ):
