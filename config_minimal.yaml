@@ -1,0 +1,10 @@
+datasets:
+  real_id: 71be83d88f1a4aa98993f623ecb0fbc8
+  synthetic_id: 21238be508c445af8c69db1bc8d63f7c
+hyperparams:
+  aug_copies: 1
+  batch_size: 4
+  epochs: 3
+  min_labeled: 5
+  patience: 0
+  words_file: data/words.txt
