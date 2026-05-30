@@ -93,7 +93,7 @@ def _build_minimal_dataset(tmp: Path) -> tuple[str, pd.DataFrame]:
 
 def test_dataset_roundtrip_extracts_under_pages_and_crops(tmp_path):
     ds_id, _ = _build_minimal_dataset(tmp_path)
-    root = Path(Dataset.get(dataset_id=ds_id).get_local_copy())
+    root = Path(Dataset.get(dataset_id=ds_id, alias="test_roundtrip").get_local_copy())
     assert (root / "pages" / "p1.png").exists()
     assert (root / "crops" / "p1_top_0.png").exists()
     assert (root / "manifest.csv").exists()
@@ -118,7 +118,7 @@ def test_dataset_roundtrip_one_epoch_training(mock_task_cls, mock_init_task, tmp
 
     ds_id, _ = _build_minimal_dataset(tmp_path)
     out = tmp_path / "out"
-    manifest_in_ds = Path(Dataset.get(dataset_id=ds_id).get_local_copy()) / "manifest.csv"
+    manifest_in_ds = Path(Dataset.get(dataset_id=ds_id, alias="test_roundtrip").get_local_copy()) / "manifest.csv"
 
     argv_backup = sys.argv[:]
     sys.argv = [

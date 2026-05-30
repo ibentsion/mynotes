@@ -235,7 +235,7 @@ def main() -> int:
     if args.dataset_id and not args.manifest.exists():
         from clearml import Dataset  # noqa: PLC0415
 
-        local_root = Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy())
+        local_root = Path(Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy())
         args.manifest = local_root / "manifest.csv"
 
     if not args.manifest.exists():

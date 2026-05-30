@@ -626,7 +626,7 @@ def _setup_finetune_loaders(
         from clearml import Dataset  # noqa: PLC0415
 
         synth_manifest = (
-            Path(Dataset.get(dataset_id=args.synthetic_dataset_id).get_local_copy())
+            Path(Dataset.get(dataset_id=args.synthetic_dataset_id, alias="synthetic").get_local_copy())
             / "manifest.csv"
         )
         synth_raw = pd.read_csv(synth_manifest)
@@ -794,7 +794,7 @@ def main() -> int:
         from clearml import Dataset  # noqa: PLC0415
 
         args.manifest = (
-            Path(Dataset.get(dataset_id=args.dataset_id).get_local_copy()) / "manifest.csv"
+            Path(Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy()) / "manifest.csv"
         )
 
     if not args.manifest.exists():

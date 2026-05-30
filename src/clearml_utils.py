@@ -60,6 +60,12 @@ def maybe_create_dataset(
     return ds.id
 
 
+def get_dataset_meta(dataset_id: str, alias: str) -> tuple[str, str]:
+    """Return (name, version) for a ClearML dataset."""
+    ds = Dataset.get(dataset_id=dataset_id, alias=alias)
+    return ds.name, ds.version
+
+
 def remap_dataset_paths(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
     """Remap manifest crop_path and page_path to ClearML dataset cache root.
 
@@ -67,7 +73,7 @@ def remap_dataset_paths(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
     Returns a copy of df — original is not modified (D-10).
     Cache is reused on subsequent calls with same dataset_id (D-11).
     """
-    root = Path(Dataset.get(dataset_id=dataset_id).get_local_copy())
+    root = Path(Dataset.get(dataset_id=dataset_id, alias="real").get_local_copy())
     df = df.copy()
     df["crop_path"] = df["crop_path"].apply(
         lambda p: str(root / "crops" / Path(p).name)
@@ -80,7 +86,7 @@ def remap_dataset_paths(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
 
 def remap_synthetic_paths(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
     """Remap crop_path only — synthetic rows have no page_path (D-10)."""
-    root = Path(Dataset.get(dataset_id=dataset_id).get_local_copy())
+    root = Path(Dataset.get(dataset_id=dataset_id, alias="synthetic").get_local_copy())
     df = df.copy()
     df["crop_path"] = df["crop_path"].apply(
         lambda p: str(root / "crops" / Path(p).name)

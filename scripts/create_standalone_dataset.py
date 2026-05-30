@@ -56,7 +56,7 @@ def build_dataset() -> str:
 def verify_roundtrip(dataset_id: str) -> None:
     import csv
 
-    root = Path(Dataset.get(dataset_id=dataset_id).get_local_copy())
+    root = Path(Dataset.get(dataset_id=dataset_id, alias="real").get_local_copy())
     manifest = root / "manifest.csv"
     assert manifest.is_file(), f"manifest.csv missing at {manifest}"
 
