@@ -169,6 +169,7 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         pretrain_epochs=0,
         pretrain_lr=1e-3,
         pretrain_checkpoint_path=sweep_args.pretrain_checkpoint_path,  # forwarded from sweep args
+        mode="finetune",
     )
     train_args.output_dir.mkdir(parents=True, exist_ok=True)
 

@@ -1,6 +1,8 @@
 datasets:
   real_id: a93e9e51a5584f8abf290f22495286ee
   synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
+# Set to local .pt path or a ClearML task ID (fetches checkpoint_pretrain artifact)
+# pretrain_checkpoint_path: outputs/model/checkpoint_pretrain.pt
 hyperparams:
   aug_copies: 4
   batch_size: 16

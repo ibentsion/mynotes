@@ -186,9 +186,20 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--pretrain_checkpoint_path",
-        type=Path,
+        type=str,
         default=None,
-        help="Path to checkpoint_pretrain.pt to load weights before fine-tuning (D-06).",
+        help=(
+            "Checkpoint to load before fine-tuning. Local path (ends in .pt) or "
+            "ClearML task ID (fetches checkpoint_pretrain artifact). "
+            "Can also be set via config.yaml."
+        ),
+    )
+    p.add_argument(
+        "--mode",
+        type=str,
+        choices=["pretrain", "finetune"],
+        required=True,
+        help="'pretrain' trains on synthetic data; 'finetune' trains on real labeled data.",
     )
     return p
 
@@ -700,7 +711,7 @@ def run_training(
     device = resolve_device()
 
     # Pre-train path: build charset from synthetic manifest, train, return (D-05)
-    if getattr(args, "pretrain_manifest", None) is not None:
+    if getattr(args, "mode", "finetune") == "pretrain":
         synth_df = pd.read_csv(args.pretrain_manifest)
         charset = build_charset(synth_df["label"].tolist())
         save_charset(args.output_dir / "charset.json", charset)
@@ -733,9 +744,15 @@ def run_training(
         num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers,
     ).to(device)
     if getattr(args, "pretrain_checkpoint_path", None) is not None:
-        state = torch.load(args.pretrain_checkpoint_path, weights_only=True, map_location=device)
+        checkpoint_ref = str(args.pretrain_checkpoint_path)
+        if not checkpoint_ref.endswith(".pt"):
+            from clearml import Task as _ClearMLTask  # noqa: PLC0415
+            remote_task = _ClearMLTask.get_task(task_id=checkpoint_ref)
+            checkpoint_ref = remote_task.artifacts["checkpoint_pretrain"].get_local_copy()
+            print(f"Resolved checkpoint from ClearML task {args.pretrain_checkpoint_path}")
+        state = torch.load(checkpoint_ref, weights_only=True, map_location=device)
         model.load_state_dict(state)
-        print(f"Loaded pre-trained weights from {args.pretrain_checkpoint_path}")
+        print(f"Loaded pre-trained weights from {checkpoint_ref}")
     model.fc.bias.data[0] = args.blank_bias_init
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
@@ -777,10 +794,21 @@ def main() -> int:
         print(f"ERROR: {e}", file=sys.stderr)
         return 6
 
+    print(f"[train_ctc] mode={args.mode}")
+
+    if args.mode == "pretrain" and args.pretrain_manifest is None:
+        print("ERROR: --mode pretrain requires --pretrain_manifest", file=sys.stderr)
+        return 2
+
+    # Load pretrain_checkpoint_path from config if not passed via CLI
+    if args.pretrain_checkpoint_path is None and _config.get("pretrain_checkpoint_path"):
+        args.pretrain_checkpoint_path = str(_config["pretrain_checkpoint_path"])
+
     tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
     if args.params is not None:
         tags.append("phase-5")
-    task = init_task("handwriting-hebrew-ocr", "train_baseline_ctc", tags=tags)
+    task_name = "train_pretrain" if args.mode == "pretrain" else "train_finetune"
+    task = init_task("handwriting-hebrew-ocr", task_name, tags=tags)
 
     # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
     task.connect(vars(args), name="hyperparams")
@@ -789,31 +817,33 @@ def main() -> int:
         task.execute_remotely(queue_name=args.queue_name)
         # local process exits here via os._exit(); code below only runs on agent
 
-    # Resolve manifest from dataset when not available locally (agent path)
-    if args.dataset_id is not None and not args.manifest.exists():
-        from clearml import Dataset  # noqa: PLC0415
+    if args.mode == "finetune":
+        # Resolve manifest from dataset when not available locally (agent path)
+        if args.dataset_id is not None and not args.manifest.exists():
+            from clearml import Dataset  # noqa: PLC0415
 
-        args.manifest = (
-            Path(Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy()) / "manifest.csv"
-        )
+            dataset_root = Path(
+                Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy()
+            )
+            args.manifest = dataset_root / "manifest.csv"
 
-    if not args.manifest.exists():
-        print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-        return 2
+        if not args.manifest.exists():
+            print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
+            return 2
 
-    df = pd.read_csv(args.manifest)
-    labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
+        df = pd.read_csv(args.manifest)
+        labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
 
-    if len(labeled) < args.min_labeled:
-        print(
-            f"ERROR: only {len(labeled)} labeled crops; need at least {args.min_labeled}.",
-            file=sys.stderr,
-        )
-        return 3
+        if len(labeled) < args.min_labeled:
+            print(
+                f"ERROR: only {len(labeled)} labeled crops; need at least {args.min_labeled}.",
+                file=sys.stderr,
+            )
+            return 3
 
-    if labeled["label"].fillna("").eq("").any():
-        print("ERROR: at least one labeled row has an empty label.", file=sys.stderr)
-        return 4
+        if labeled["label"].fillna("").eq("").any():
+            print("ERROR: at least one labeled row has an empty label.", file=sys.stderr)
+            return 4
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
