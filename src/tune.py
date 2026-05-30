@@ -71,13 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dataset_id",
         type=str,
         default=None,
-        help="ClearML dataset ID; resolves manifest on agent",
-    )
-    p.add_argument(
-        "--synthetic_dataset_id",
-        type=str,
-        default=None,
-        help="ClearML dataset ID for synthetic crops; forwarded to each trial",
+        help="ClearML dataset ID. pretrain=synthetic crops, finetune=real labeled data.",
     )
     p.add_argument(
         "--min_labeled", type=int, default=100, help="Passed to train_ctc; matches its default"
@@ -99,12 +93,6 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=None,
         help="Path to pre-trained checkpoint; forwarded to each finetune HPO trial.",
-    )
-    p.add_argument(
-        "--pretrain_manifest",
-        type=Path,
-        default=None,
-        help="Synthetic manifest CSV for pretrain HPO. Required when --mode pretrain.",
     )
     p.add_argument(
         "--mode",
@@ -185,7 +173,6 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         enqueue=False,
         queue_name="gpu",
         dataset_id=sweep_args.dataset_id,
-        synthetic_dataset_id=sweep_args.synthetic_dataset_id,
         blank_bias_init=-2.0,
         rnn_hidden=params.get("rnn_hidden", 128),
         num_layers=params.get("num_layers", 2),
@@ -200,9 +187,8 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
     if mode == "pretrain":
         train_args = argparse.Namespace(
             **common,
-            manifest=sweep_args.manifest,  # unused for pretrain but required in Namespace
+            manifest=sweep_args.manifest,
             min_labeled=0,
-            pretrain_manifest=sweep_args.pretrain_manifest,
             pretrain_lr=params["pretrain_lr"],
             pretrain_epochs=params["pretrain_epochs"],
             pretrain_checkpoint_path=None,
@@ -222,7 +208,6 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
             manifest=sweep_args.manifest,
             min_labeled=sweep_args.min_labeled,
             val_frac=0.2,
-            pretrain_manifest=None,
             pretrain_epochs=0,
             pretrain_lr=1e-3,
             pretrain_checkpoint_path=sweep_args.pretrain_checkpoint_path,
@@ -290,20 +275,12 @@ def main() -> int:
     _config = load_config(mode=peek_mode())
     parser = _build_parser()
     if _config.get("datasets"):
-        datasets = _config["datasets"]
-        parser.set_defaults(
-            dataset_id=datasets.get("real_id"),  # ty: ignore[unresolved-attribute]
-            synthetic_dataset_id=datasets.get("synthetic_id"),  # ty: ignore[unresolved-attribute]
-        )
+        parser.set_defaults(dataset_id=_config["datasets"].get("id"))  # ty: ignore[unresolved-attribute]
     if _config.get("queue_name"):
         parser.set_defaults(queue_name=_config["queue_name"])
-    if _config.get("pretrain_manifest"):
-        parser.set_defaults(pretrain_manifest=Path(str(_config["pretrain_manifest"])))
+    if _config.get("manifest"):
+        parser.set_defaults(manifest=Path(str(_config["manifest"])))
     args = parser.parse_args()
-
-    if args.mode == "pretrain" and args.pretrain_manifest is None:
-        print("ERROR: --mode pretrain requires --pretrain_manifest", file=sys.stderr)
-        return 2
 
     orch_task = init_task(
         "handwriting-hebrew-ocr", f"hpo_{args.mode}", tags=["phase-5"],
@@ -312,25 +289,17 @@ def main() -> int:
     if args.enqueue:
         orch_task.execute_remotely(queue_name=args.queue_name)
 
-    if args.mode == "finetune":
-        # Resolve real manifest from ClearML dataset when not available locally (agent path)
-        if args.dataset_id and not args.manifest.exists():
-            from clearml import Dataset  # noqa: PLC0415
+    # Resolve manifest from ClearML dataset when not available locally (agent path)
+    if args.dataset_id and not args.manifest.exists():
+        from clearml import Dataset  # noqa: PLC0415
 
-            local_root = Path(
-                Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy()
-            )
-            args.manifest = local_root / "manifest.csv"
+        alias = "real" if args.mode == "finetune" else "synthetic"
+        local_root = Path(Dataset.get(dataset_id=args.dataset_id, alias=alias).get_local_copy())
+        args.manifest = local_root / "manifest.csv"
 
-        if not args.manifest.exists():
-            print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-            return 2
-    else:
-        # Pretrain: check synthetic manifest
-        pretrain_manifest = Path(args.pretrain_manifest)
-        if not pretrain_manifest.exists():
-            print(f"ERROR: --pretrain_manifest not found: {pretrain_manifest}", file=sys.stderr)
-            return 2
+    if not args.manifest.exists():
+        print(f"ERROR: --manifest not found: {args.manifest}", file=sys.stderr)
+        return 2
 
     pruner = optuna.pruners.MedianPruner(
         n_startup_trials=args.n_startup_trials,
@@ -348,7 +317,8 @@ def main() -> int:
     keys = _param_keys(args.mode)
     tunable = {f"hyperparams.{k}": best_params[k] for k in keys if k in best_params}
     update_config(mode=args.mode, **tunable)
-    cer_str = f"{best_params['best_val_cer']:.4f}" if best_params['best_val_cer'] is not None else "N/A"
+    best_cer = best_params["best_val_cer"]
+    cer_str = f"{best_cer:.4f}" if best_cer is not None else "N/A"
     print(f"Best trial {best_params['trial_number']}: CER={cer_str}")
     print(json.dumps(best_params, indent=2))
     _report_hpo_results(orch_task, study, mode=args.mode)

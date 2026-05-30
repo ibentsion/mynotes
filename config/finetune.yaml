@@ -1,6 +1,5 @@
 datasets:
-  real_id: a93e9e51a5584f8abf290f22495286ee
-  synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
+  id: a93e9e51a5584f8abf290f22495286ee
 
 queue_name: ofek
 # Set to local .pt path or a ClearML task ID (fetches checkpoint_pretrain artifact)

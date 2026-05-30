@@ -1,8 +1,8 @@
 datasets:
-  synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
+  id: af1b2cd0017a48f593eb29bd5dcbae61
 
 queue_name: ofek
-pretrain_manifest: outputs/synthetic/manifest.csv
+manifest: outputs/synthetic/manifest.csv
 
 hyperparams:
   batch_size: 16

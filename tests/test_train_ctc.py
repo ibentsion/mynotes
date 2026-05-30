@@ -90,7 +90,7 @@ def test_build_parser_has_documented_defaults():
     from src.train_ctc import _build_parser
 
     parser = _build_parser()
-    args = parser.parse_args(["--manifest", "m.csv", "--output_dir", "out"])
+    args = parser.parse_args(["--mode", "finetune", "--manifest", "m.csv", "--output_dir", "out"])
     assert args.epochs == 30
     assert args.batch_size == 8
     assert args.lr == pytest.approx(1e-3)
@@ -139,6 +139,8 @@ def test_status_filter_keeps_only_labeled(mock_task_cls, mock_init_task, tmp_pat
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
+            "--mode",
+            "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -179,6 +181,8 @@ def test_min_labeled_guard_exits_3(mock_init_task, tmp_path):
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -219,6 +223,8 @@ def test_empty_label_guard_exits_4(mock_init_task, tmp_path):
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -274,6 +280,8 @@ def test_charset_build_receives_labeled_labels(
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
+            "--mode",
+            "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -348,6 +356,8 @@ def test_no_page_leakage_between_train_and_val(
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
+            "--mode",
+            "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -427,6 +437,8 @@ def test_train_one_epoch_writes_checkpoint_and_charset(
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -479,6 +491,8 @@ def test_missing_manifest_exits_2(mock_init_task, tmp_path):
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(tmp_path / "nope.csv"),
         "--output_dir",
@@ -492,7 +506,7 @@ def test_missing_manifest_exits_2(mock_init_task, tmp_path):
         sys.argv = argv_backup
 
     assert rc == 2
-    assert "--manifest does not exist" in captured_err.getvalue()
+    assert "--manifest not found" in captured_err.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -504,7 +518,7 @@ def test_build_parser_aug_defaults():
     from src.train_ctc import _build_parser
 
     parser = _build_parser()
-    args = parser.parse_args(["--manifest", "m.csv", "--output_dir", "out"])
+    args = parser.parse_args(["--mode", "finetune", "--manifest", "m.csv", "--output_dir", "out"])
     assert args.aug_copies == 4
     assert args.rotation_max == pytest.approx(7.0)
     assert args.brightness_delta == pytest.approx(0.10)
@@ -556,6 +570,8 @@ def test_aug_copies_zero_backward_compat(mock_task_cls, mock_init_task, tmp_path
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -627,6 +643,8 @@ def test_aug_copies_nonzero_prints_effective_size(mock_task_cls, mock_init_task,
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -710,6 +728,8 @@ def test_val_dataset_has_no_augment(mock_task_cls, mock_init_task, tmp_path):
         argv_backup = sys.argv[:]
         sys.argv = [
             "src.train_ctc",
+            "--mode",
+            "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -748,7 +768,7 @@ def test_build_parser_has_enqueue_and_dataset_id_flags():
     from src.train_ctc import _build_parser
 
     parser = _build_parser()
-    args = parser.parse_args(["--manifest", "m.csv", "--output_dir", "out"])
+    args = parser.parse_args(["--mode", "finetune", "--manifest", "m.csv", "--output_dir", "out"])
     assert args.enqueue is False
     assert args.queue_name == "gpu"
     assert args.dataset_id is None
@@ -786,6 +806,8 @@ def test_enqueue_calls_execute_remotely_after_connect(mock_init_task, tmp_path, 
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -831,6 +853,8 @@ def test_enqueue_uses_gpu_tag(mock_init_task, tmp_path, monkeypatch):
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -879,6 +903,8 @@ def test_dataset_id_calls_remap(mock_remap, mock_task_cls, mock_init_task, tmp_p
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -948,6 +974,8 @@ def test_no_enqueue_no_dataset_id_backward_compat(mock_task_cls, mock_init_task,
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -982,7 +1010,7 @@ def test_no_enqueue_no_dataset_id_backward_compat(mock_task_cls, mock_init_task,
 def test_rnn_hidden_and_num_layers_defaults():
     from src.train_ctc import _build_parser
 
-    args = _build_parser().parse_args(["--manifest", "m.csv"])
+    args = _build_parser().parse_args(["--mode", "finetune", "--manifest", "m.csv"])
     assert args.rnn_hidden == 256
     assert args.num_layers == 2
     assert args.params is None
@@ -992,7 +1020,8 @@ def test_rnn_hidden_and_num_layers_custom():
     from src.train_ctc import _build_parser
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             "m.csv",
             "--rnn_hidden",
@@ -1009,7 +1038,9 @@ def test_rnn_hidden_rejects_value_not_in_choices():
     from src.train_ctc import _build_parser
 
     with pytest.raises(SystemExit) as exc:
-        _build_parser().parse_args(["--manifest", "m.csv", "--rnn_hidden", "999"])
+        _build_parser().parse_args(
+            ["--mode", "finetune", "--manifest", "m.csv", "--rnn_hidden", "999"]
+        )
     assert exc.value.code == 2
 
 
@@ -1017,7 +1048,9 @@ def test_num_layers_rejects_value_not_in_choices():
     from src.train_ctc import _build_parser
 
     with pytest.raises(SystemExit) as exc:
-        _build_parser().parse_args(["--manifest", "m.csv", "--num_layers", "5"])
+        _build_parser().parse_args(
+            ["--mode", "finetune", "--manifest", "m.csv", "--num_layers", "5"]
+        )
     assert exc.value.code == 2
 
 
@@ -1041,7 +1074,8 @@ def test_params_file_loads_and_overrides_args(tmp_path: Path):
         )
     )
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             "m.csv",
             "--params",
@@ -1072,7 +1106,8 @@ def test_params_file_ignores_unknown_keys(tmp_path: Path):
         )
     )
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             "m.csv",
             "--params",
@@ -1092,7 +1127,8 @@ def test_params_file_casts_float_to_int_for_int_args(tmp_path: Path):
     params_file = tmp_path / "best.json"
     params_file.write_text(json.dumps({"batch_size": 8.0, "epochs": 30.0}))
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             "m.csv",
             "--params",
@@ -1112,12 +1148,10 @@ def test_missing_params_file_exits_6(tmp_path: Path):
     manifest.write_text("crop_path\n")  # any content; will fail before reading
     result = _run_cli(
         [
-            "--manifest",
-            str(manifest),
-            "--params",
-            str(tmp_path / "does_not_exist.json"),
-            "--output_dir",
-            str(tmp_path / "out"),
+            "--mode", "finetune",
+            "--manifest", str(manifest),
+            "--params", str(tmp_path / "does_not_exist.json"),
+            "--output_dir", str(tmp_path / "out"),
         ]
     )
     assert result.returncode == 6
@@ -1166,7 +1200,8 @@ def test_run_training_invokes_on_epoch_end_per_epoch(mock_task_cls, tmp_path: Pa
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -1204,7 +1239,8 @@ def test_run_training_returns_best_val_cer_as_float(mock_task_cls, tmp_path: Pat
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -1239,7 +1275,8 @@ def test_run_training_callback_exception_propagates_and_stops_loop(mock_task_cls
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -1281,7 +1318,8 @@ def test_run_training_does_not_call_init_task(mock_task_cls, tmp_path: Path):
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest",
             str(manifest),
             "--output_dir",
@@ -1329,6 +1367,8 @@ def test_main_still_writes_checkpoint_via_helper(mock_task_cls, mock_init_task, 
     argv_backup = sys.argv[:]
     sys.argv = [
         "src.train_ctc",
+        "--mode",
+        "finetune",
         "--manifest",
         str(manifest),
         "--output_dir",
@@ -1370,7 +1410,8 @@ def test_early_stopping_fires_before_max_epochs(mock_task_cls, tmp_path: Path, c
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest", str(manifest),
             "--output_dir", str(out_dir),
             "--epochs", "10",
@@ -1397,7 +1438,7 @@ def test_early_stopping_fires_before_max_epochs(mock_task_cls, tmp_path: Path, c
 def test_build_parser_elastic_defaults():
     from src.train_ctc import _build_parser
 
-    args = _build_parser().parse_args(["--manifest", "m.csv"])
+    args = _build_parser().parse_args(["--mode", "finetune", "--manifest", "m.csv"])
     assert args.elastic_alpha == 0.0
     assert args.elastic_sigma == 5.0
 
@@ -1420,7 +1461,8 @@ def test_elastic_alpha_nonzero_wires_into_augment_transform(
     from src.train_ctc import _build_parser, run_training
 
     args = _build_parser().parse_args(
-        [
+            [
+            "--mode", "finetune",
             "--manifest", str(manifest),
             "--output_dir", str(out_dir),
             "--epochs", "1",
@@ -1487,8 +1529,7 @@ def _make_synthetic_manifest(tmp_path: Path, n: int = 6) -> Path:
 def test_build_parser_pretrain_flags_defaults():
     from src.train_ctc import _build_parser
 
-    args = _build_parser().parse_args(["--manifest", "m.csv"])
-    assert args.pretrain_manifest is None
+    args = _build_parser().parse_args(["--mode", "pretrain", "--manifest", "m.csv"])
     assert args.pretrain_epochs == 0
     assert args.pretrain_lr == pytest.approx(1e-3)
     assert args.pretrain_checkpoint_path is None
@@ -1506,8 +1547,8 @@ def test_pretrain_mode_runs_without_real_manifest(mock_task_cls, tmp_path: Path)
 
     args = _build_parser().parse_args(
         [
-            "--manifest", "data/manifest.csv",  # does not exist — should NOT be read
-            "--pretrain_manifest", str(synth_manifest),
+            "--mode", "pretrain",
+            "--manifest", str(synth_manifest),
             "--pretrain_epochs", "1",
             "--output_dir", str(out_dir),
             "--batch_size", "2",
@@ -1533,8 +1574,8 @@ def test_pretrain_mode_does_not_proceed_to_finetune(mock_task_cls, tmp_path: Pat
 
     args = _build_parser().parse_args(
         [
-            "--manifest", "data/manifest.csv",
-            "--pretrain_manifest", str(synth_manifest),
+            "--mode", "pretrain",
+            "--manifest", str(synth_manifest),
             "--pretrain_epochs", "1",
             "--output_dir", str(out_dir),
             "--batch_size", "2",
@@ -1553,7 +1594,9 @@ def test_pretrain_mode_does_not_proceed_to_finetune(mock_task_cls, tmp_path: Pat
     with patch("src.ctc_utils.build_half_page_units", side_effect=_raise):
         run_training(args)  # should NOT raise
 
-    assert not build_called[0], "build_half_page_units was called — pretrain mode entered finetune path"
+    assert not build_called[0], (
+        "build_half_page_units was called — pretrain mode entered finetune path"
+    )
 
 
 @patch("src.train_ctc.Task")
@@ -1565,8 +1608,8 @@ def test_finetune_loads_pretrain_checkpoint_path(mock_task_cls, tmp_path: Path):
     manifest, out_dir = _make_labeled_manifest(tmp_path)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    from src.train_ctc import _build_parser, run_training
     from src.ctc_utils import CRNN, build_charset
+    from src.train_ctc import _build_parser, run_training
 
     # Build a CRNN with the same charset size the manifest will produce
     df = pd.read_csv(manifest)
@@ -1578,6 +1621,7 @@ def test_finetune_loads_pretrain_checkpoint_path(mock_task_cls, tmp_path: Path):
 
     args = _build_parser().parse_args(
         [
+            "--mode", "finetune",
             "--manifest", str(manifest),
             "--output_dir", str(out_dir),
             "--pretrain_checkpoint_path", str(ckpt_path),
@@ -1605,6 +1649,7 @@ def test_run_training_on_epoch_end_still_fires_in_finetune(mock_task_cls, tmp_pa
 
     args = _build_parser().parse_args(
         [
+            "--mode", "finetune",
             "--manifest", str(manifest),
             "--output_dir", str(out_dir),
             "--epochs", "1",

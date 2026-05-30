@@ -157,20 +157,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--dataset_id",
         type=str,
         default=None,
-        help="ClearML dataset ID; downloads and remaps paths in-memory (D-09)",
-    )
-    p.add_argument(
-        "--synthetic_dataset_id",
-        type=str,
-        default=None,
-        help="ClearML dataset ID for synthetic crops; appended to train split only",
-    )
-    p.add_argument(
-        "--pretrain_manifest",
-        type=Path,
-        default=None,
-        help="CSV manifest for synthetic pre-training crops. If set, runs pre-training only "
-        "and saves checkpoint_pretrain.pt.",
+        help="ClearML dataset ID. pretrain=synthetic crops, finetune=real labeled data.",
     )
     p.add_argument(
         "--pretrain_epochs",
@@ -565,7 +552,9 @@ def _run_pretrain(
 
     from src.ctc_utils import CropDataset, crnn_collate  # noqa: PLC0415
 
-    synth_df = pd.read_csv(args.pretrain_manifest)
+    synth_df = pd.read_csv(args.manifest)
+    if getattr(args, "dataset_id", None) is not None:
+        synth_df = remap_synthetic_paths(synth_df, args.dataset_id)
     n = len(synth_df)
     n_val = max(1, math.ceil(n * args.val_frac))
     val_df_pre = synth_df.iloc[:n_val].reset_index(drop=True)
@@ -633,20 +622,6 @@ def _setup_finetune_loaders(
     if not train_idx or not val_idx:
         raise ValueError(f"split produced empty set (train={len(train_idx)}, val={len(val_idx)}).")
 
-    synthetic_df: Any | None = None
-    if getattr(args, "synthetic_dataset_id", None) is not None:
-        from clearml import Dataset  # noqa: PLC0415
-
-        synth_manifest = (
-            Path(Dataset.get(dataset_id=args.synthetic_dataset_id, alias="synthetic").get_local_copy())
-            / "manifest.csv"
-        )
-        synth_raw = pd.read_csv(synth_manifest)
-        synthetic_df = remap_synthetic_paths(
-            synth_raw[synth_raw["status"] == "labeled"].reset_index(drop=True),
-            args.synthetic_dataset_id,
-        )
-
     augment: AugmentTransform | None = None
     if args.aug_copies > 0:
         augment = AugmentTransform(
@@ -657,11 +632,7 @@ def _setup_finetune_loaders(
             elastic_sigma=args.elastic_sigma,
         )
 
-    train_real_df = labeled.iloc[train_idx].reset_index(drop=True)
-    if synthetic_df is not None:
-        train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True)
-    else:
-        train_base_df = train_real_df
+    train_base_df = labeled.iloc[train_idx].reset_index(drop=True)
 
     if augment is not None:
         train_base_len = len(train_base_df)
@@ -713,7 +684,7 @@ def run_training(
 
     # Pre-train path: build charset from synthetic manifest, train, return (D-05)
     if getattr(args, "mode", "finetune") == "pretrain":
-        synth_df = pd.read_csv(args.pretrain_manifest)
+        synth_df = pd.read_csv(args.manifest)
         charset = build_charset(synth_df["label"].tolist())
         save_charset(args.output_dir / "charset.json", charset)
         model = CRNN(
@@ -780,17 +751,13 @@ def main() -> int:
     _config = load_config(mode=peek_mode())
     parser = _build_parser()
     if _config.get("datasets"):
-        datasets = _config["datasets"]
-        parser.set_defaults(
-            dataset_id=datasets.get("real_id"),  # ty: ignore[unresolved-attribute]
-            synthetic_dataset_id=datasets.get("synthetic_id"),  # ty: ignore[unresolved-attribute]
-        )
+        parser.set_defaults(dataset_id=_config["datasets"].get("id"))  # ty: ignore[unresolved-attribute]
     if _config.get("hyperparams"):
         parser.set_defaults(**_config["hyperparams"])  # ty: ignore[invalid-argument-type]
     if _config.get("queue_name"):
         parser.set_defaults(queue_name=_config["queue_name"])
-    if _config.get("pretrain_manifest"):
-        parser.set_defaults(pretrain_manifest=Path(str(_config["pretrain_manifest"])))
+    if _config.get("manifest"):
+        parser.set_defaults(manifest=Path(str(_config["manifest"])))
     if _config.get("pretrain_checkpoint_path"):
         parser.set_defaults(pretrain_checkpoint_path=str(_config["pretrain_checkpoint_path"]))
     args = parser.parse_args()
@@ -802,10 +769,6 @@ def main() -> int:
         return 6
 
     print(f"[train_ctc] mode={args.mode}")
-
-    if args.mode == "pretrain" and args.pretrain_manifest is None:
-        print("ERROR: --mode pretrain requires --pretrain_manifest", file=sys.stderr)
-        return 2
 
     tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
     if args.params is not None:
@@ -820,20 +783,19 @@ def main() -> int:
         task.execute_remotely(queue_name=args.queue_name)
         # local process exits here via os._exit(); code below only runs on agent
 
+    # Resolve manifest from ClearML dataset when not available locally (agent path)
+    if args.dataset_id is not None and not args.manifest.exists():
+        from clearml import Dataset  # noqa: PLC0415
+
+        alias = "real" if args.mode == "finetune" else "synthetic"
+        dataset_root = Path(Dataset.get(dataset_id=args.dataset_id, alias=alias).get_local_copy())
+        args.manifest = dataset_root / "manifest.csv"
+
+    if not args.manifest.exists():
+        print(f"ERROR: --manifest not found: {args.manifest}", file=sys.stderr)
+        return 2
+
     if args.mode == "finetune":
-        # Resolve manifest from dataset when not available locally (agent path)
-        if args.dataset_id is not None and not args.manifest.exists():
-            from clearml import Dataset  # noqa: PLC0415
-
-            dataset_root = Path(
-                Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy()
-            )
-            args.manifest = dataset_root / "manifest.csv"
-
-        if not args.manifest.exists():
-            print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-            return 2
-
         df = pd.read_csv(args.manifest)
         labeled = df[df["status"] == "labeled"].reset_index(drop=True)  # TRAN-01
 
