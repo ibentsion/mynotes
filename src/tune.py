@@ -149,6 +149,7 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         queue_name="gpu",
         dataset_id=sweep_args.dataset_id,
         synthetic_dataset_id=sweep_args.synthetic_dataset_id,
+        words_file=None,
         weight_decay=1e-4,
         patience=0,  # disabled during HPO — Optuna MedianPruner is the termination mechanism
         blank_bias_init=-2.0,
