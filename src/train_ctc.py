@@ -372,7 +372,6 @@ def _eval_val_epoch(
     val_df: Any,
     *,
     ctc_loss: Any,
-    ctc_loss_per_sample: Any,
     charset: list[str],
     device: Any,
 ) -> tuple[float, float, float, float, list[tuple[str, str, str, float]]]:
@@ -494,7 +493,7 @@ def _run_loop(
         model.eval()
         val_loss, val_cer, blank_frac, empty_frac, per_sample_cer = _eval_val_epoch(
             model, val_loader, val_df,
-            ctc_loss=ctc_loss, ctc_loss_per_sample=ctc_loss_per_sample,
+            ctc_loss=ctc_loss,
             charset=charset, device=device,
         )
         scheduler.step(val_cer)
