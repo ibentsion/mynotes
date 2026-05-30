@@ -670,8 +670,10 @@ def _setup_finetune_loaders(
         train_ds, batch_size=args.batch_size, shuffle=True,
         collate_fn=crnn_collate, num_workers=args.num_workers,
     )
+    # shuffle=False and drop_last=False are required: _eval_val_epoch maps batches back to
+    # val_df by sequential index; any reordering or row drop would silently corrupt attribution.
     val_loader = DataLoader(
-        val_ds, batch_size=args.batch_size, shuffle=False,
+        val_ds, batch_size=args.batch_size, shuffle=False, drop_last=False,
         collate_fn=crnn_collate, num_workers=args.num_workers,
     )
     return train_loader, val_loader, val_df, augment, debug_samples
