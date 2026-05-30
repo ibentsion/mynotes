@@ -246,7 +246,13 @@ def test_e2e_one_trial_no_enqueue(monkeypatch, tmp_path: Path):
             str(out_dir),
         ],
     )
-    with patch("src.tune.run_training", return_value=0.5), patch("src.tune.init_task") as mock_init:
+    tmp_config = tmp_path / "config.yaml"
+    tmp_config.write_text("{}\n")
+    with (
+        patch("src.tune.run_training", return_value=0.5),
+        patch("src.tune.init_task") as mock_init,
+        patch("src.tune.update_config", side_effect=lambda **kw: None),
+    ):
         mock_init.return_value = MagicMock()
         ret = main()
     assert ret == 0
