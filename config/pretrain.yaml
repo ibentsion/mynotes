@@ -1,0 +1,14 @@
+datasets:
+  synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
+
+queue_name: ofek
+pretrain_manifest: outputs/synthetic/manifest.csv
+
+hyperparams:
+  batch_size: 16
+  blank_bias_init: -2.0
+  num_layers: 2
+  pretrain_epochs: 30
+  pretrain_lr: 1.0e-3
+  rnn_hidden: 128
+  weight_decay: 0.0001

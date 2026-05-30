@@ -3,20 +3,36 @@ from pathlib import Path
 
 import yaml
 
+CONFIG_DIR = Path("config")
 CONFIG_PATH = Path("config.yaml")
 
 
-def load_config(path: Path | None = None) -> dict[str, object]:
+def load_config(path: Path | None = None, mode: str | None = None) -> dict[str, object]:
     if path is None:
         env_path = os.environ.get("CONFIG_PATH")
-        path = Path(env_path) if env_path else CONFIG_PATH
+        if env_path:
+            path = Path(env_path)
+        elif mode is not None:
+            mode_path = CONFIG_DIR / f"{mode}.yaml"
+            path = mode_path if mode_path.exists() else CONFIG_PATH
+        else:
+            path = CONFIG_PATH
     if not path.exists():
         return {}
     return yaml.safe_load(path.read_text()) or {}
 
 
-def update_config(path: Path = CONFIG_PATH, **kwargs: object) -> None:
-    """Patch config at dotted key paths, e.g. update_config(**{"datasets.synthetic_id": "abc"})."""
+def update_config(path: Path | None = None, mode: str | None = None, **kwargs: object) -> None:
+    """Patch config at dotted key paths, e.g. update_config(**{"datasets.synthetic_id": "abc"}).
+
+    With mode=, writes to config/{mode}.yaml if it exists; otherwise config.yaml.
+    """
+    if path is None:
+        if mode is not None:
+            mode_path = CONFIG_DIR / f"{mode}.yaml"
+            path = mode_path if mode_path.exists() else CONFIG_PATH
+        else:
+            path = CONFIG_PATH
     cfg: dict[str, object] = load_config(path) or {}
     for dotted_key, value in kwargs.items():
         parts = dotted_key.split(".")

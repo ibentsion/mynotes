@@ -217,7 +217,7 @@ def _write_best_params(study: optuna.Study, output_dir: Path) -> Path:
 
 
 def main() -> int:
-    _config = load_config()
+    _config = load_config(mode="finetune")
     parser = _build_parser()
     if _config.get("datasets"):
         datasets = _config["datasets"]
@@ -225,6 +225,8 @@ def main() -> int:
             dataset_id=datasets.get("real_id"),  # ty: ignore[unresolved-attribute]
             synthetic_dataset_id=datasets.get("synthetic_id"),  # ty: ignore[unresolved-attribute]
         )
+    if _config.get("queue_name"):
+        parser.set_defaults(queue_name=_config["queue_name"])
     args = parser.parse_args()
 
     orch_task = init_task("handwriting-hebrew-ocr", "hpo_sweep", tags=["phase-5"])
@@ -257,7 +259,7 @@ def main() -> int:
     out_path = _write_best_params(study, args.output_dir)
     best_params = json.loads(out_path.read_text())
     tunable = {f"hyperparams.{k}": best_params[k] for k in PARAM_KEYS if k in best_params}
-    update_config(**tunable)
+    update_config(mode="finetune", **tunable)
     cer_str = f"{best_params['best_val_cer']:.4f}" if best_params['best_val_cer'] is not None else "N/A"
     print(f"Best trial {best_params['trial_number']}: CER={cer_str}")
     print(json.dumps(best_params, indent=2))

@@ -1,0 +1,21 @@
+datasets:
+  real_id: a93e9e51a5584f8abf290f22495286ee
+  synthetic_id: af1b2cd0017a48f593eb29bd5dcbae61
+
+queue_name: ofek
+# Set to local .pt path or a ClearML task ID (fetches checkpoint_pretrain artifact)
+# pretrain_checkpoint_path: outputs/model/checkpoint_pretrain.pt
+
+hyperparams:
+  aug_copies: 4
+  batch_size: 16
+  blank_bias_init: -2.0
+  brightness_delta: 0.13628143487433556
+  epochs: 24
+  lr: 9.184204606602473e-05
+  noise_sigma: 0.021165338711967897
+  num_layers: 2
+  patience: 5
+  rnn_hidden: 128
+  rotation_max: 5.868158750677542
+  weight_decay: 0.0001

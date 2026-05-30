@@ -21,6 +21,18 @@ from src.run_config import load_config
 DEBUG_SAMPLES = 5
 
 
+def _peek_mode() -> str | None:
+    """Read --mode from sys.argv before full argparse to enable mode-aware config loading."""
+    for i, arg in enumerate(sys.argv):
+        if arg.startswith("--mode="):
+            val = arg[7:]
+            return val if val in ("pretrain", "finetune") else None
+        if arg == "--mode" and i + 1 < len(sys.argv):
+            val = sys.argv[i + 1]
+            return val if val in ("pretrain", "finetune") else None
+    return None
+
+
 def _apply_params_file(args: argparse.Namespace) -> None:
     """Mutate args from a JSON file, casting each value to the existing arg's type.
 
@@ -776,7 +788,7 @@ def run_training(
 
 
 def main() -> int:
-    _config = load_config()
+    _config = load_config(mode=_peek_mode())
     parser = _build_parser()
     if _config.get("datasets"):
         datasets = _config["datasets"]
@@ -786,6 +798,12 @@ def main() -> int:
         )
     if _config.get("hyperparams"):
         parser.set_defaults(**_config["hyperparams"])  # ty: ignore[invalid-argument-type]
+    if _config.get("queue_name"):
+        parser.set_defaults(queue_name=_config["queue_name"])
+    if _config.get("pretrain_manifest"):
+        parser.set_defaults(pretrain_manifest=Path(str(_config["pretrain_manifest"])))
+    if _config.get("pretrain_checkpoint_path"):
+        parser.set_defaults(pretrain_checkpoint_path=str(_config["pretrain_checkpoint_path"]))
     args = parser.parse_args()
 
     try:
@@ -799,10 +817,6 @@ def main() -> int:
     if args.mode == "pretrain" and args.pretrain_manifest is None:
         print("ERROR: --mode pretrain requires --pretrain_manifest", file=sys.stderr)
         return 2
-
-    # Load pretrain_checkpoint_path from config if not passed via CLI
-    if args.pretrain_checkpoint_path is None and _config.get("pretrain_checkpoint_path"):
-        args.pretrain_checkpoint_path = str(_config["pretrain_checkpoint_path"])
 
     tags = ["phase-4", "gpu"] if args.enqueue else ["phase-4"]
     if args.params is not None:
