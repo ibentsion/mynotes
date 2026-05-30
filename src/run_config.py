@@ -1,10 +1,27 @@
 import os
+import sys
 from pathlib import Path
 
 import yaml
 
 CONFIG_DIR = Path("config")
 CONFIG_PATH = Path("config.yaml")
+
+
+def peek_mode(argv: list[str] | None = None) -> str | None:
+    """Read --mode from argv (default: sys.argv) before full argparse runs.
+
+    Used by train_ctc and tune to select the right config file before set_defaults.
+    """
+    tokens = argv if argv is not None else sys.argv
+    for i, token in enumerate(tokens):
+        if token.startswith("--mode="):
+            val = token[7:]
+            return val if val in ("pretrain", "finetune") else None
+        if token == "--mode" and i + 1 < len(tokens):
+            val = tokens[i + 1]
+            return val if val in ("pretrain", "finetune") else None
+    return None
 
 
 def load_config(path: Path | None = None, mode: str | None = None) -> dict[str, object]:

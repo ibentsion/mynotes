@@ -22,9 +22,10 @@ import pandas as pd
 from clearml import Task  # noqa: F401  # module-level for test patchability — established pattern
 
 from src.clearml_utils import init_task
-from src.run_config import load_config, update_config
+from src.run_config import load_config, peek_mode, update_config
 from src.train_ctc import run_training
 
+# Finetune param keys — kept as module-level tuple for backward compat with tests
 PARAM_KEYS = (
     "lr",
     "batch_size",
@@ -36,6 +37,18 @@ PARAM_KEYS = (
     "brightness_delta",
     "noise_sigma",
 )
+
+PRETRAIN_PARAM_KEYS = (
+    "pretrain_lr",
+    "pretrain_epochs",
+    "batch_size",
+    "rnn_hidden",
+    "num_layers",
+)
+
+
+def _param_keys(mode: str) -> tuple[str, ...]:
+    return PRETRAIN_PARAM_KEYS if mode == "pretrain" else PARAM_KEYS
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -85,12 +98,33 @@ def _build_parser() -> argparse.ArgumentParser:
         "--pretrain_checkpoint_path",
         type=Path,
         default=None,
-        help="Path to pre-trained checkpoint; forwarded to each HPO trial.",
+        help="Path to pre-trained checkpoint; forwarded to each finetune HPO trial.",
+    )
+    p.add_argument(
+        "--pretrain_manifest",
+        type=Path,
+        default=None,
+        help="Synthetic manifest CSV for pretrain HPO. Required when --mode pretrain.",
+    )
+    p.add_argument(
+        "--mode",
+        type=str,
+        choices=["pretrain", "finetune"],
+        default="finetune",
+        help="HPO target: 'pretrain' tunes synthetic pretraining; 'finetune' tunes real-data.",
     )
     return p
 
 
-def _suggest_params(trial: optuna.Trial) -> dict[str, object]:
+def _suggest_params(trial: optuna.Trial, mode: str = "finetune") -> dict[str, object]:
+    if mode == "pretrain":
+        return {
+            "pretrain_lr": trial.suggest_float("pretrain_lr", 1e-4, 1e-2, log=True),
+            "pretrain_epochs": trial.suggest_int("pretrain_epochs", 10, 50),
+            "batch_size": trial.suggest_categorical("batch_size", [8, 16, 32]),
+            "rnn_hidden": trial.suggest_categorical("rnn_hidden", [128, 256]),
+            "num_layers": trial.suggest_categorical("num_layers", [1, 2]),
+        }
     return {
         "lr": trial.suggest_float("lr", 5e-5, 1e-3, log=True),
         "batch_size": trial.suggest_categorical("batch_size", [4, 8, 16]),
@@ -104,11 +138,16 @@ def _suggest_params(trial: optuna.Trial) -> dict[str, object]:
     }
 
 
-def _init_trial_task(trial: optuna.Trial, train_args: argparse.Namespace) -> Task:
+def _init_trial_task(
+    trial: optuna.Trial,
+    train_args: argparse.Namespace,
+    mode: str = "finetune",
+) -> Task:
+    tags = ["phase-5", "hpo-trial"] if mode != "pretrain" else ["phase-5", "hpo-trial", "pretrain"]
     trial_task = init_task(
         "handwriting-hebrew-ocr",
-        f"hpo_trial_{trial.number}",
-        tags=["phase-5", "hpo-trial"],
+        f"hpo_{mode}_trial_{trial.number}",
+        tags=tags,
     )
     trial_task.connect(vars(train_args), name="hyperparams")
     return trial_task
@@ -131,49 +170,74 @@ def _make_pruning_callback(
 
 
 def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
-    params = _suggest_params(trial)
+    mode = str(getattr(sweep_args, "mode", "finetune"))
+    params = _suggest_params(trial, mode)
 
     # Bypass argparse entirely. ClearML monkey-patches both parse_args and
     # parse_known_args, and on the GPU agent it injects tune.py-only flags
     # (--n_trials, --n_startup_trials, --n_warmup_steps) into any parser
     # call inside this process — train_ctc's parser rejects them. Direct
     # Namespace construction cannot be intercepted.
-    train_args = argparse.Namespace(
-        manifest=sweep_args.manifest,
+    common = dict(
         output_dir=sweep_args.output_dir / f"trial_{trial.number}",
-        val_frac=0.2,
-        min_labeled=sweep_args.min_labeled,
         num_workers=0,
         params=None,
         enqueue=False,
         queue_name="gpu",
         dataset_id=sweep_args.dataset_id,
         synthetic_dataset_id=sweep_args.synthetic_dataset_id,
-        words_file=None,
-        weight_decay=1e-4,
-        patience=0,  # disabled during HPO — Optuna MedianPruner is the termination mechanism
         blank_bias_init=-2.0,
-        # Populated from Optuna trial.suggest_*:
-        lr=params["lr"],
-        batch_size=params["batch_size"],
-        epochs=params["epochs"],
-        rnn_hidden=params["rnn_hidden"],
-        num_layers=params["num_layers"],
-        aug_copies=params["aug_copies"],
-        rotation_max=params["rotation_max"],
-        brightness_delta=params["brightness_delta"],
-        noise_sigma=params["noise_sigma"],
-        elastic_alpha=0.0,  # HPO does not tune elastic; safe default keeps it off (D-02)
-        elastic_sigma=5.0,  # matches _build_parser default
-        pretrain_manifest=None,
-        pretrain_epochs=0,
-        pretrain_lr=1e-3,
-        pretrain_checkpoint_path=sweep_args.pretrain_checkpoint_path,  # forwarded from sweep args
-        mode="finetune",
+        rnn_hidden=params.get("rnn_hidden", 128),
+        num_layers=params.get("num_layers", 2),
+        batch_size=params.get("batch_size", 16),
+        elastic_alpha=0.0,
+        elastic_sigma=5.0,
+        weight_decay=1e-4,
+        patience=0,  # disabled — Optuna MedianPruner is the termination mechanism
+        mode=mode,
     )
+
+    if mode == "pretrain":
+        train_args = argparse.Namespace(
+            **common,
+            manifest=sweep_args.manifest,  # unused for pretrain but required in Namespace
+            min_labeled=0,
+            pretrain_manifest=sweep_args.pretrain_manifest,
+            pretrain_lr=params["pretrain_lr"],
+            pretrain_epochs=params["pretrain_epochs"],
+            pretrain_checkpoint_path=None,
+            val_frac=0.2,
+            # Unused for pretrain but must exist so _run_pretrain's Namespace copy doesn't error:
+            lr=1e-3,
+            epochs=0,
+            aug_copies=0,
+            rotation_max=0.0,
+            brightness_delta=0.0,
+            noise_sigma=0.0,
+            words_file=None,
+        )
+    else:
+        train_args = argparse.Namespace(
+            **common,
+            manifest=sweep_args.manifest,
+            min_labeled=sweep_args.min_labeled,
+            val_frac=0.2,
+            pretrain_manifest=None,
+            pretrain_epochs=0,
+            pretrain_lr=1e-3,
+            pretrain_checkpoint_path=sweep_args.pretrain_checkpoint_path,
+            lr=params["lr"],
+            epochs=params["epochs"],
+            aug_copies=params["aug_copies"],
+            rotation_max=params["rotation_max"],
+            brightness_delta=params["brightness_delta"],
+            noise_sigma=params["noise_sigma"],
+            words_file=None,
+        )
+
     train_args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    trial_task = _init_trial_task(trial, train_args)
+    trial_task = _init_trial_task(trial, train_args, mode)
     _, on_epoch_end = _make_pruning_callback(trial)
 
     try:
@@ -185,9 +249,12 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
         trial_task.close()
 
 
-def _report_hpo_results(orch_task: Task, study: optuna.Study) -> None:
+def _report_hpo_results(
+    orch_task: Task, study: optuna.Study, mode: str = "finetune",
+) -> None:
     logger = orch_task.get_logger()
     rows: list[dict[str, object]] = []
+    keys = _param_keys(mode)
     for t in study.trials:
         if t.value is not None:
             logger.report_scalar(title="cer", series="val", iteration=t.number, value=t.value)
@@ -196,7 +263,7 @@ def _report_hpo_results(orch_task: Task, study: optuna.Study) -> None:
             "value": t.value,
             "state": str(t.state),
         }
-        for k in PARAM_KEYS:
+        for k in keys:
             row[k] = t.params.get(k)
         rows.append(row)
     if rows:
@@ -204,9 +271,12 @@ def _report_hpo_results(orch_task: Task, study: optuna.Study) -> None:
         logger.report_table(title="HPO Results", series="trials", iteration=0, table_plot=df)
 
 
-def _write_best_params(study: optuna.Study, output_dir: Path) -> Path:
+def _write_best_params(
+    study: optuna.Study, output_dir: Path, mode: str = "finetune",
+) -> Path:
     best = study.best_trial
-    best_params = {k: best.params.get(k) for k in PARAM_KEYS}
+    keys = _param_keys(mode)
+    best_params = {k: best.params.get(k) for k in keys}
     best_params["best_val_cer"] = float(best.value) if best.value is not None else None
     best_params["trial_number"] = best.number
     best_params["n_trials_run"] = len(study.trials)
@@ -217,7 +287,7 @@ def _write_best_params(study: optuna.Study, output_dir: Path) -> Path:
 
 
 def main() -> int:
-    _config = load_config(mode="finetune")
+    _config = load_config(mode=peek_mode())
     parser = _build_parser()
     if _config.get("datasets"):
         datasets = _config["datasets"]
@@ -227,23 +297,40 @@ def main() -> int:
         )
     if _config.get("queue_name"):
         parser.set_defaults(queue_name=_config["queue_name"])
+    if _config.get("pretrain_manifest"):
+        parser.set_defaults(pretrain_manifest=Path(str(_config["pretrain_manifest"])))
     args = parser.parse_args()
 
-    orch_task = init_task("handwriting-hebrew-ocr", "hpo_sweep", tags=["phase-5"])
+    if args.mode == "pretrain" and args.pretrain_manifest is None:
+        print("ERROR: --mode pretrain requires --pretrain_manifest", file=sys.stderr)
+        return 2
+
+    orch_task = init_task(
+        "handwriting-hebrew-ocr", f"hpo_{args.mode}", tags=["phase-5"],
+    )
     orch_task.connect(vars(args), name="sweep_config")
     if args.enqueue:
         orch_task.execute_remotely(queue_name=args.queue_name)
 
-    # Resolve manifest from ClearML dataset when not available locally (agent path)
-    if args.dataset_id and not args.manifest.exists():
-        from clearml import Dataset  # noqa: PLC0415
+    if args.mode == "finetune":
+        # Resolve real manifest from ClearML dataset when not available locally (agent path)
+        if args.dataset_id and not args.manifest.exists():
+            from clearml import Dataset  # noqa: PLC0415
 
-        local_root = Path(Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy())
-        args.manifest = local_root / "manifest.csv"
+            local_root = Path(
+                Dataset.get(dataset_id=args.dataset_id, alias="real").get_local_copy()
+            )
+            args.manifest = local_root / "manifest.csv"
 
-    if not args.manifest.exists():
-        print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
-        return 2
+        if not args.manifest.exists():
+            print(f"ERROR: --manifest does not exist: {args.manifest}", file=sys.stderr)
+            return 2
+    else:
+        # Pretrain: check synthetic manifest
+        pretrain_manifest = Path(args.pretrain_manifest)
+        if not pretrain_manifest.exists():
+            print(f"ERROR: --pretrain_manifest not found: {pretrain_manifest}", file=sys.stderr)
+            return 2
 
     pruner = optuna.pruners.MedianPruner(
         n_startup_trials=args.n_startup_trials,
@@ -256,14 +343,15 @@ def main() -> int:
         print("ERROR: no trials completed; nothing to report.", file=sys.stderr)
         return 7
 
-    out_path = _write_best_params(study, args.output_dir)
+    out_path = _write_best_params(study, args.output_dir, mode=args.mode)
     best_params = json.loads(out_path.read_text())
-    tunable = {f"hyperparams.{k}": best_params[k] for k in PARAM_KEYS if k in best_params}
-    update_config(mode="finetune", **tunable)
+    keys = _param_keys(args.mode)
+    tunable = {f"hyperparams.{k}": best_params[k] for k in keys if k in best_params}
+    update_config(mode=args.mode, **tunable)
     cer_str = f"{best_params['best_val_cer']:.4f}" if best_params['best_val_cer'] is not None else "N/A"
     print(f"Best trial {best_params['trial_number']}: CER={cer_str}")
     print(json.dumps(best_params, indent=2))
-    _report_hpo_results(orch_task, study)
+    _report_hpo_results(orch_task, study, mode=args.mode)
     return 0
 
 

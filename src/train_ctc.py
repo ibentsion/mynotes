@@ -16,21 +16,9 @@ from src.clearml_utils import (
     remap_synthetic_paths,
     upload_file_artifact,
 )
-from src.run_config import load_config
+from src.run_config import load_config, peek_mode
 
 DEBUG_SAMPLES = 5
-
-
-def _peek_mode() -> str | None:
-    """Read --mode from sys.argv before full argparse to enable mode-aware config loading."""
-    for i, arg in enumerate(sys.argv):
-        if arg.startswith("--mode="):
-            val = arg[7:]
-            return val if val in ("pretrain", "finetune") else None
-        if arg == "--mode" and i + 1 < len(sys.argv):
-            val = sys.argv[i + 1]
-            return val if val in ("pretrain", "finetune") else None
-    return None
 
 
 def _apply_params_file(args: argparse.Namespace) -> None:
@@ -568,6 +556,7 @@ def _run_pretrain(
     logger: Any,
     task: Any,
     charset: list[str],
+    on_epoch_end: Callable[[int, float], None] | None = None,
 ) -> float:
     import math  # noqa: PLC0415
 
@@ -614,7 +603,7 @@ def _run_pretrain(
         checkpoint_path=checkpoint_pretrain_path,
         debug_samples=[],
         series_prefix="pretrain/",
-        on_epoch_end=None,
+        on_epoch_end=on_epoch_end,
     )
     upload_file_artifact(task, "checkpoint_pretrain", checkpoint_pretrain_path)
     return best_pretrain_cer
@@ -731,7 +720,7 @@ def run_training(
             num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers,
         ).to(device)
         model.fc.bias.data[0] = args.blank_bias_init
-        return _run_pretrain(model, args, device, logger, task, charset)
+        return _run_pretrain(model, args, device, logger, task, charset, on_epoch_end=on_epoch_end)
 
     # Fine-tune path
     df = pd.read_csv(args.manifest)
@@ -788,7 +777,7 @@ def run_training(
 
 
 def main() -> int:
-    _config = load_config(mode=_peek_mode())
+    _config = load_config(mode=peek_mode())
     parser = _build_parser()
     if _config.get("datasets"):
         datasets = _config["datasets"]
