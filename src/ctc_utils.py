@@ -214,6 +214,8 @@ class AugmentTransform:
             import albumentations as A  # noqa: PLC0415
             import numpy as np  # noqa: PLC0415
 
+            if seed is not None:
+                np.random.seed(seed)
             transform = A.Compose(
                 [
                     A.ElasticTransform(
