@@ -728,11 +728,11 @@ def run_training(
     model = CRNN(
         num_classes=len(charset) + 1, rnn_hidden=args.rnn_hidden, num_layers=args.num_layers,
     ).to(device)
-    model.fc.bias.data[0] = args.blank_bias_init
     if getattr(args, "pretrain_checkpoint_path", None) is not None:
         state = torch.load(args.pretrain_checkpoint_path, weights_only=True, map_location=device)
         model.load_state_dict(state)
         print(f"Loaded pre-trained weights from {args.pretrain_checkpoint_path}")
+    model.fc.bias.data[0] = args.blank_bias_init
     optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="min", factor=0.5, patience=6, min_lr=1e-6,
