@@ -644,18 +644,21 @@ def _setup_finetune_loaders(
             elastic_alpha=args.elastic_alpha,
             elastic_sigma=args.elastic_sigma,
         )
-        effective_n = len(train_idx) * (1 + args.aug_copies)
-        print(
-            f"augmentation: aug_copies={args.aug_copies}, "
-            f"effective dataset size: {effective_n} (was {len(train_idx)})"
-        )
-        task.connect({"effective_train_size": effective_n}, name="hyperparams")
 
     train_real_df = labeled.iloc[train_idx].reset_index(drop=True)
     if synthetic_df is not None:
         train_base_df = pd.concat([train_real_df, synthetic_df], ignore_index=True)
     else:
         train_base_df = train_real_df
+
+    if augment is not None:
+        train_base_len = len(train_base_df)
+        effective_n = train_base_len * (1 + args.aug_copies)
+        print(
+            f"augmentation: aug_copies={args.aug_copies}, "
+            f"effective dataset size: {effective_n} (was {len(train_idx)})"
+        )
+        task.connect({"effective_train_size": effective_n}, name="hyperparams")
     train_ds = CropDataset(train_base_df, charset, augment=augment, aug_copies=args.aug_copies)
     val_df = labeled.iloc[val_idx].reset_index(drop=True)
     val_ds = CropDataset(val_df, charset)
