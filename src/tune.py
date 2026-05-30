@@ -257,7 +257,8 @@ def main() -> int:
     best_params = json.loads(out_path.read_text())
     tunable = {f"hyperparams.{k}": best_params[k] for k in PARAM_KEYS if k in best_params}
     update_config(**tunable)
-    print(f"Best trial {best_params['trial_number']}: CER={best_params['best_val_cer']:.4f}")
+    cer_str = f"{best_params['best_val_cer']:.4f}" if best_params['best_val_cer'] is not None else "N/A"
+    print(f"Best trial {best_params['trial_number']}: CER={cer_str}")
     print(json.dumps(best_params, indent=2))
     _report_hpo_results(orch_task, study)
     return 0
