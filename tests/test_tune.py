@@ -110,7 +110,7 @@ def test_objective_pruning_callback_raises_trial_pruned():
     trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
     trial.should_prune.return_value = True
 
-    with patch("src.tune.run_training") as mock_run, patch("src.tune.init_task") as mock_init:
+    with patch("src.tune.run_training") as mock_run:
 
         def fake_run(args, on_epoch_end=None):
             assert on_epoch_end is not None
@@ -120,34 +120,8 @@ def test_objective_pruning_callback_raises_trial_pruned():
             return 0.9
 
         mock_run.side_effect = fake_run
-        mock_init.return_value = MagicMock()
         with pytest.raises(optuna.TrialPruned):
             _objective(trial, sweep_args)
-
-
-def test_objective_closes_trial_task_on_failure():
-    from src.tune import _objective
-
-    sweep_args = MagicMock()
-    sweep_args.manifest = Path("data/manifest.csv")
-    sweep_args.min_labeled = 100
-    sweep_args.dataset_id = None
-    sweep_args.output_dir = Path("/tmp/test_outputs_fail")
-    trial = MagicMock(spec=optuna.Trial)
-    trial.number = 0
-    trial.suggest_float.side_effect = lambda *a, **kw: 0.001
-    trial.suggest_int.side_effect = lambda *a, **kw: 30
-    trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
-
-    trial_task_mock = MagicMock()
-    with (
-        patch("src.tune.run_training") as mock_run,
-        patch("src.tune.init_task", return_value=trial_task_mock),
-    ):
-        mock_run.side_effect = ValueError("split produced empty set")
-        with pytest.raises(ValueError):
-            _objective(trial, sweep_args)
-        assert trial_task_mock.close.called
 
 
 def test_orchestrator_task_tagged_phase_5_only(tmp_path: Path):
@@ -176,30 +150,6 @@ def test_orchestrator_task_tagged_phase_5_only(tmp_path: Path):
         assert ret == 7  # no trials → exit 7
 
 
-def test_per_trial_task_tagged_phase_5_and_hpo_trial():
-    from src.tune import _objective
-
-    sweep_args = MagicMock()
-    sweep_args.manifest = Path("data/manifest.csv")
-    sweep_args.min_labeled = 100
-    sweep_args.dataset_id = None
-    sweep_args.output_dir = Path("/tmp/test_outputs_tags")
-    trial = MagicMock(spec=optuna.Trial)
-    trial.number = 3
-    trial.suggest_float.side_effect = lambda *a, **kw: 0.001
-    trial.suggest_int.side_effect = lambda *a, **kw: 30
-    trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
-    trial.should_prune.return_value = False
-    with patch("src.tune.run_training", return_value=0.5), patch("src.tune.init_task") as mock_init:
-        mock_init.return_value = MagicMock()
-        _objective(trial, sweep_args)
-        call_args = mock_init.call_args
-        tags = call_args.kwargs.get("tags") or (
-            call_args.args[2] if len(call_args.args) > 2 else None
-        )
-        assert tags == ["phase-5", "hpo-trial"]
-
-
 def test_objective_ignores_extra_sys_argv_args(monkeypatch, tmp_path: Path):
     from src.tune import _objective
 
@@ -219,8 +169,7 @@ def test_objective_ignores_extra_sys_argv_args(monkeypatch, tmp_path: Path):
     trial.suggest_int.side_effect = lambda *a, **kw: 30
     trial.suggest_categorical.side_effect = lambda name, choices: choices[0]
     trial.should_prune.return_value = False
-    with patch("src.tune.run_training", return_value=0.5), patch("src.tune.init_task") as mock_init:
-        mock_init.return_value = MagicMock()
+    with patch("src.tune.run_training", return_value=0.5):
         result = _objective(trial, sweep_args)
     assert result == 0.5
 
@@ -307,10 +256,15 @@ def test_missing_manifest_exits_2(tmp_path: Path):
     # Pass --dataset_id "" to prevent config.yaml real_id from triggering dataset
     # resolution when the manifest doesn't exist.
     cmd = [
-        sys.executable, "-m", "src.tune",
-        "--manifest", str(tmp_path / "nope.csv"),
-        "--n_trials", "0",
-        "--dataset_id", "",
+        sys.executable,
+        "-m",
+        "src.tune",
+        "--manifest",
+        str(tmp_path / "nope.csv"),
+        "--n_trials",
+        "0",
+        "--dataset_id",
+        "",
     ]
     result = subprocess.run(
         cmd,

@@ -126,21 +126,6 @@ def _suggest_params(trial: optuna.Trial, mode: str = "finetune") -> dict[str, ob
     }
 
 
-def _init_trial_task(
-    trial: optuna.Trial,
-    train_args: argparse.Namespace,
-    mode: str = "finetune",
-) -> Task:
-    tags = ["phase-5", "hpo-trial"] if mode != "pretrain" else ["phase-5", "hpo-trial", "pretrain"]
-    trial_task = init_task(
-        "handwriting-hebrew-ocr",
-        f"hpo_{mode}_trial_{trial.number}",
-        tags=tags,
-    )
-    trial_task.connect(vars(train_args), name="hyperparams")
-    return trial_task
-
-
 def _make_pruning_callback(
     trial: optuna.Trial,
 ) -> tuple[list[float], Callable[[int, float], None]]:
@@ -222,20 +207,14 @@ def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
 
     train_args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    trial_task = _init_trial_task(trial, train_args, mode)
     _, on_epoch_end = _make_pruning_callback(trial)
-
-    try:
-        best_val_cer = run_training(train_args, on_epoch_end=on_epoch_end)
-        return best_val_cer
-    except optuna.TrialPruned:
-        raise
-    finally:
-        trial_task.close()
+    return run_training(train_args, on_epoch_end=on_epoch_end)
 
 
 def _report_hpo_results(
-    orch_task: Task, study: optuna.Study, mode: str = "finetune",
+    orch_task: Task,
+    study: optuna.Study,
+    mode: str = "finetune",
 ) -> None:
     logger = orch_task.get_logger()
     rows: list[dict[str, object]] = []
@@ -257,7 +236,9 @@ def _report_hpo_results(
 
 
 def _write_best_params(
-    study: optuna.Study, output_dir: Path, mode: str = "finetune",
+    study: optuna.Study,
+    output_dir: Path,
+    mode: str = "finetune",
 ) -> Path:
     best = study.best_trial
     keys = _param_keys(mode)
@@ -283,7 +264,9 @@ def main() -> int:
     args = parser.parse_args()
 
     orch_task = init_task(
-        "handwriting-hebrew-ocr", f"hpo_{args.mode}", tags=["phase-5"],
+        "handwriting-hebrew-ocr",
+        f"hpo_{args.mode}",
+        tags=["phase-5"],
     )
     orch_task.connect(vars(args), name="sweep_config")
     if args.enqueue:
