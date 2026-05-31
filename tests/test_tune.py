@@ -28,6 +28,8 @@ def test_build_parser_defaults():
     assert args.n_warmup_steps == 5
     assert args.enqueue is False
     assert args.manifest == Path("data/manifest.csv")
+    assert args.storage is None
+    assert args.study_name is None
 
 
 def test_param_keys_tuple_order_and_count():
@@ -223,7 +225,7 @@ def test_enqueue_calls_execute_remotely_before_optimize(tmp_path: Path):
     def track_execute_remotely(**kwargs):
         call_order.append("execute_remotely")
 
-    def track_optimize(fn, n_trials):
+    def track_optimize(fn, n_trials, callbacks=None):
         call_order.append("optimize")
 
     orch_task.execute_remotely.side_effect = track_execute_remotely

@@ -101,6 +101,21 @@ def _build_parser() -> argparse.ArgumentParser:
         default="finetune",
         help="HPO target: 'pretrain' tunes synthetic pretraining; 'finetune' tunes real-data.",
     )
+    p.add_argument(
+        "--storage",
+        type=str,
+        default=None,
+        help=(
+            "Local SQLite path for persistent study (e.g. outputs/hpo.db). "
+            "Enables resume after abort and optuna-dashboard visualization."
+        ),
+    )
+    p.add_argument(
+        "--study_name",
+        type=str,
+        default=None,
+        help="Optuna study name for persistent storage (default: hpo_<mode>).",
+    )
     return p
 
 
@@ -140,6 +155,23 @@ def _make_pruning_callback(
             raise optuna.TrialPruned()
 
     return best_cer, _on_epoch_end
+
+
+def _make_progress_callback(
+    n_trials_target: int,
+) -> Callable[[optuna.Study, optuna.Trial], None]:
+    def _cb(study: optuna.Study, trial: optuna.Trial) -> None:
+        if trial.state != optuna.trial.TrialState.COMPLETE:
+            return
+        n_done = sum(1 for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE)
+        best = study.best_trial
+        best_str = f"{best.value:.4f} (trial {best.number})" if best else "N/A"
+        print(
+            f"Trial {trial.number}: CER={trial.value:.4f}  "
+            f"({n_done}/{n_trials_target} done, best={best_str})"
+        )
+
+    return _cb
 
 
 def _objective(trial: optuna.Trial, sweep_args: argparse.Namespace) -> float:
@@ -284,12 +316,34 @@ def main() -> int:
         print(f"ERROR: --manifest not found: {args.manifest}", file=sys.stderr)
         return 2
 
+    storage_url = f"sqlite:///{args.storage}" if args.storage else None
+    study_name = args.study_name or f"hpo_{args.mode}"
+
     pruner = optuna.pruners.MedianPruner(
         n_startup_trials=args.n_startup_trials,
         n_warmup_steps=args.n_warmup_steps,
     )
-    study = optuna.create_study(direction="minimize", pruner=pruner)  # Pitfall 6
-    study.optimize(lambda trial: _objective(trial, args), n_trials=args.n_trials)
+    study = optuna.create_study(  # Pitfall 6
+        direction="minimize",
+        pruner=pruner,
+        storage=storage_url,
+        study_name=study_name,
+        load_if_exists=bool(storage_url),
+    )
+
+    prev_complete = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    to_run = max(0, args.n_trials - len(prev_complete))
+    if prev_complete:
+        print(
+            f"Resuming study '{study_name}': {len(prev_complete)} previous trials completed, "
+            f"running {to_run} more (target: {args.n_trials})"
+        )
+
+    study.optimize(
+        lambda trial: _objective(trial, args),
+        n_trials=to_run,
+        callbacks=[_make_progress_callback(args.n_trials)],
+    )
 
     if not study.trials or study.best_trial is None:
         print("ERROR: no trials completed; nothing to report.", file=sys.stderr)
@@ -305,6 +359,27 @@ def main() -> int:
     print(f"Best trial {best_params['trial_number']}: CER={cer_str}")
     print(json.dumps(best_params, indent=2))
     _report_hpo_results(orch_task, study, mode=args.mode)
+
+    completed = [t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    if len(completed) >= 2:
+        importances = optuna.importance.get_param_importances(study)
+        print("\nParameter importances (fANOVA):")
+        for param, score in sorted(importances.items(), key=lambda x: -x[1]):
+            print(f"  {param}: {score:.4f}")
+        imp_df = pd.DataFrame(
+            [{"param": k, "importance": v} for k, v in importances.items()]
+        ).sort_values("importance", ascending=False)
+        orch_task.get_logger().report_table(
+            title="Parameter Importances", series="fANOVA", iteration=0, table_plot=imp_df
+        )
+
+    if args.storage:
+        storage_path = Path(args.storage)
+        if storage_path.exists():
+            orch_task.upload_artifact("optuna_study_db", artifact_object=str(storage_path))
+        print(f"\nOptuna dashboard: optuna-dashboard sqlite:///{args.storage}")
+        print("(Install: uv add --dev optuna-dashboard)")
+
     return 0
 
 
