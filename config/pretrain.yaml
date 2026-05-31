@@ -8,7 +8,7 @@ hyperparams:
   batch_size: 16
   blank_bias_init: -2.0
   num_layers: 2
-  pretrain_epochs: 30
-  pretrain_lr: 1.0e-3
-  rnn_hidden: 128
+  pretrain_epochs: 42
+  pretrain_lr: 1.38e-3
+  rnn_hidden: 256
   weight_decay: 0.0001
