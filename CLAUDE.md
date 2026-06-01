@@ -35,6 +35,75 @@ Conventions not yet established. Will populate as patterns emerge during develop
 Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- GSD:architecture-end -->
 
+## HPO Workflow
+
+### Terminology
+- **Trial**: one training run with one hyperparameter set (epochs = 20–50 per trial)
+- **n_trials**: total completed trials the study should reach (resume continues toward this target)
+- SQLite is written after every `trial.report(val_cer, epoch)` call AND on trial completion — safe to abort mid-trial; in-flight trial stays `RUNNING` in DB, all prior completed trials are preserved
+
+### Param keys by mode
+- **finetune**: `lr`, `batch_size`, `epochs`, `rnn_hidden`, `num_layers`, `aug_copies`, `rotation_max`, `brightness_delta`, `noise_sigma`
+- **pretrain**: `pretrain_lr`, `pretrain_epochs`, `batch_size`, `rnn_hidden`, `num_layers`
+
+### Running HPO
+
+```bash
+# Finetune — local run with persistent SQLite for resume + visualization
+uv run tune-hpo --manifest data/manifest.csv --n_trials 20 --mode finetune \
+  --storage outputs/hpo_finetune.db
+
+# Pretrain — local run
+uv run tune-hpo --manifest data/manifest.csv --n_trials 20 --mode pretrain \
+  --storage outputs/hpo_pretrain.db
+
+# Enqueue to GPU agent (queue: ofek) — entire sweep runs remotely
+uv run tune-hpo --dataset_id <clearml_dataset_id> --n_trials 20 --mode finetune \
+  --storage outputs/hpo_finetune.db --enqueue --queue_name ofek
+```
+
+On remote runs: the SQLite is created on the agent machine and uploaded as ClearML artifact
+`optuna_study_db` when the sweep completes. Epoch-level intermediate values are stored
+in SQLite throughout the run (via `trial.report`) — visible in optuna-dashboard even for
+aborted trials.
+
+### Resuming after abort
+
+Re-run with the same `--storage` and `--n_trials`. The sweep counts existing completed
+trials and runs only the remaining ones:
+
+```bash
+# Resumes: e.g. 7 done → runs 13 more to reach 20
+uv run tune-hpo --manifest data/manifest.csv --n_trials 20 --mode finetune \
+  --storage outputs/hpo_finetune.db
+# Output: "Resuming study 'hpo_finetune': 7 previous trials completed, running 13 more"
+```
+
+For remote runs that aborted: download the SQLite artifact first, then resume locally
+or download and inspect:
+```bash
+uv run tune-hpo-inspect --task_id <clearml_task_id> --mode finetune
+```
+
+### Inspecting results
+
+```bash
+# Inspect local DB — trial counts, best params, fANOVA importances
+uv run tune-hpo-inspect --storage outputs/hpo_finetune.db --mode finetune
+uv run tune-hpo-inspect --storage outputs/hpo_pretrain.db --mode pretrain
+
+# Download from ClearML task and inspect
+uv run tune-hpo-inspect --task_id <clearml_task_id> --mode finetune
+
+# Launch interactive optuna-dashboard (requires optuna-dashboard in dev deps)
+uv run tune-hpo-inspect --storage outputs/hpo_finetune.db --mode finetune --dashboard
+# Or directly:
+optuna-dashboard sqlite:///outputs/hpo_finetune.db
+```
+
+fANOVA importances require ≥2 completed trials. Both pretrain and finetune modes are
+fully supported — specify `--mode` to select the correct param key list.
+
 <!-- GSD:workflow-start source:GSD defaults -->
 ## GSD Workflow Enforcement
 

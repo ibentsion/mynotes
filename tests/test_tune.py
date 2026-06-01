@@ -298,6 +298,7 @@ def test_smoke_imports():
     from src.tune import (  # noqa: F401
         PARAM_KEYS,
         _build_parser,
+        _make_progress_callback,
         _objective,
         _report_hpo_results,
         _suggest_params,
@@ -307,3 +308,84 @@ def test_smoke_imports():
 
     assert PARAM_KEYS
     assert callable(main)
+    assert callable(_make_progress_callback)
+
+
+def test_resume_sqlite_study(monkeypatch, tmp_path: Path):
+    """Verify SQLite-backed study resumes correctly: second run continues from prior trials."""
+    from src.tune import main
+
+    storage_path = tmp_path / "test_hpo.db"
+    manifest = tmp_path / "manifest.csv"
+    manifest.write_text("crop_path,label,status,page_id\nfake/crop.png,א,labeled,p1\n")
+    out_dir = tmp_path / "out"
+
+    call_num = [0]
+
+    def varying_cer(*args, **kwargs):
+        call_num[0] += 1
+        return 0.5 - call_num[0] * 0.05  # 0.45, 0.40, 0.35 then 0.30, 0.25
+
+    # First run: 3 trials
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tune.py",
+            "--manifest",
+            str(manifest),
+            "--n_trials",
+            "3",
+            "--min_labeled",
+            "1",
+            "--output_dir",
+            str(out_dir),
+            "--storage",
+            str(storage_path),
+            "--study_name",
+            "test_hpo",
+        ],
+    )
+    with (
+        patch("src.tune.run_training", side_effect=varying_cer),
+        patch("src.tune.init_task", return_value=MagicMock()),
+        patch("src.tune.update_config", side_effect=lambda *a, **kw: None),
+    ):
+        assert main() == 0
+
+    study1 = optuna.load_study(study_name="test_hpo", storage=f"sqlite:///{storage_path}")
+    done1 = [t for t in study1.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    assert len(done1) == 3
+
+    # Second run: resume to 5 total — only 2 more trials should run
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "tune.py",
+            "--manifest",
+            str(manifest),
+            "--n_trials",
+            "5",
+            "--min_labeled",
+            "1",
+            "--output_dir",
+            str(out_dir),
+            "--storage",
+            str(storage_path),
+            "--study_name",
+            "test_hpo",
+        ],
+    )
+    with (
+        patch("src.tune.run_training", side_effect=varying_cer),
+        patch("src.tune.init_task", return_value=MagicMock()),
+        patch("src.tune.update_config", side_effect=lambda *a, **kw: None),
+    ):
+        assert main() == 0
+
+    study2 = optuna.load_study(study_name="test_hpo", storage=f"sqlite:///{storage_path}")
+    done2 = [t for t in study2.trials if t.state == optuna.trial.TrialState.COMPLETE]
+    assert len(done2) == 5
+    # call 4 returns 0.30, call 5 returns 0.25 — best should be 0.25
+    assert study2.best_trial.value == pytest.approx(0.25)
