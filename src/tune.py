@@ -302,6 +302,9 @@ def main() -> int:
         f"hpo_{args.mode}",
         tags=["phase-5"],
     )
+    # Agent installs deps only (not the package itself), so console scripts like
+    # tune-hpo are missing from .venv/bin/. Override to the actual module file.
+    orch_task.set_script(entry_point="src/tune.py")
     orch_task.connect(vars(args), name="sweep_config")
     if args.enqueue:
         orch_task.execute_remotely(queue_name=args.queue_name)

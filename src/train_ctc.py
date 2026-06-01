@@ -775,6 +775,9 @@ def main() -> int:
         tags.append("phase-5")
     task_name = "train_pretrain" if args.mode == "pretrain" else "train_finetune"
     task = init_task("handwriting-hebrew-ocr", task_name, tags=tags)
+    # Agent installs deps only (not the package itself), so console scripts like
+    # train-ctc are missing from .venv/bin/. Override to the actual module file.
+    task.set_script(entry_point="src/train_ctc.py")
 
     # TRAN-07: connect ALL hyperparameters; MUST come before execute_remotely
     task.connect(vars(args), name="hyperparams")
