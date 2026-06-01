@@ -2,6 +2,7 @@ datasets:
   id: af1b2cd0017a48f593eb29bd5dcbae61
 
 queue_name: ofek
+hpo_storage: outputs/hpo_pretrain.db
 manifest: outputs/synthetic/manifest.csv
 
 hyperparams:

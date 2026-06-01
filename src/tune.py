@@ -293,6 +293,8 @@ def main() -> int:
         parser.set_defaults(queue_name=_config["queue_name"])
     if _config.get("manifest"):
         parser.set_defaults(manifest=Path(str(_config["manifest"])))
+    if _config.get("hpo_storage"):
+        parser.set_defaults(storage=str(_config["hpo_storage"]))
     args = parser.parse_args()
 
     orch_task = init_task(

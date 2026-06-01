@@ -2,6 +2,7 @@ datasets:
   id: a93e9e51a5584f8abf290f22495286ee
 
 queue_name: ofek
+hpo_storage: outputs/hpo_finetune.db
 # Set to local .pt path or a ClearML task ID (fetches checkpoint_pretrain artifact)
 # pretrain_checkpoint_path: outputs/model/checkpoint_pretrain.pt
 
