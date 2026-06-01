@@ -35,6 +35,82 @@ Conventions not yet established. Will populate as patterns emerge during develop
 Architecture not yet mapped. Follow existing patterns found in the codebase.
 <!-- GSD:architecture-end -->
 
+## Training Workflow
+
+### Pipeline overview
+
+```
+synthetic data → pretrain (train-ctc --mode pretrain)
+                     └─ checkpoint_pretrain.pt (ClearML artifact)
+                           └─ finetune (train-ctc --mode finetune --pretrain_checkpoint_path <task_id>)
+                                  └─ checkpoint.pt → evaluate
+```
+
+### Config files
+
+- `config/pretrain.yaml` — pretrain hyperparams, synthetic dataset ID, queue
+- `config/finetune.yaml` — finetune hyperparams, real dataset ID, pretrain checkpoint ref, queue
+
+All `train-ctc` flags have config equivalents. Config values become parser defaults;
+CLI flags override them.
+
+### Pretrain (synthetic data)
+
+```bash
+# Local CPU run
+uv run train-ctc --mode pretrain --manifest outputs/synthetic/manifest.csv
+
+# Enqueue to GPU agent (reads dataset_id and queue_name from config/pretrain.yaml)
+uv run train-ctc --mode pretrain --enqueue
+```
+
+Produces `outputs/model/checkpoint_pretrain.pt` and uploads it as ClearML artifact
+`checkpoint_pretrain` on the task. Copy the ClearML **task ID** from the results URL —
+you'll need it for finetune.
+
+### Finetune
+
+```bash
+# From scratch (no pretrain checkpoint)
+uv run train-ctc --mode finetune --enqueue
+
+# From a pretrain checkpoint — pass ClearML task ID or local .pt path
+uv run train-ctc --mode finetune --enqueue \
+  --pretrain_checkpoint_path <clearml_pretrain_task_id>
+```
+
+**Preferred: set in config** so you don't need to pass it every time. Uncomment and fill
+`config/finetune.yaml`:
+```yaml
+pretrain_checkpoint_path: <clearml_pretrain_task_id>   # or outputs/model/checkpoint_pretrain.pt
+```
+
+When a task ID is given, the agent fetches the `checkpoint_pretrain` artifact directly
+from ClearML — no manual download needed. A local `.pt` path works for local runs only.
+
+### Evaluate
+
+```bash
+# Runs greedy decode on val split, writes outputs/model/eval_report.csv
+uv run evaluate --manifest data/manifest.csv
+```
+
+Reads `outputs/model/checkpoint.pt` and `outputs/model/charset.json` by default.
+
+### HPO → training flow
+
+After HPO completes, best params are written back to `config/pretrain.yaml` or
+`config/finetune.yaml` automatically (the `update_config` call in `tune.py`). Re-run
+training immediately after to use them — no manual config editing needed.
+
+```bash
+# After pretrain HPO finishes → train with best pretrain params
+uv run train-ctc --mode pretrain --enqueue
+
+# After finetune HPO finishes → train with best finetune params
+uv run train-ctc --mode finetune --enqueue
+```
+
 ## HPO Workflow
 
 ### Terminology
