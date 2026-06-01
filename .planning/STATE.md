@@ -141,6 +141,7 @@ None yet.
 | 260526-o8k | config.yaml for dataset ids and best hyperparams, auto-updated on register, read by training and tuning | 2026-05-26 | b37d21a | [260526-o8k-config-yaml-for-dataset-ids-and-best-hyp](./quick/260526-o8k-config-yaml-for-dataset-ids-and-best-hyp/) |
 | 260526-gpu | Update all CPU-only training references to GPU via ClearML agent (queue ofek) | 2026-05-26 | ec835bb | [260526-gpu-update-cpu-training-references](./quick/260526-gpu-update-cpu-training-references/) |
 | 20260531-obs | HPO observability: progress callback, SQLite resume, fANOVA importances, optuna-dashboard | 2026-05-31 | 3cef961 | [20260531-hpo-observability-resume-importances](./quick/20260531-hpo-observability-resume-importances/) |
+| 20260601-hpo | HPO resume test, tune-hpo-inspect CLI, CLAUDE.md HPO workflow docs | 2026-06-01 | 67b7da0 | [20260601-hpo-resume-test-inspect-cli-docs](./quick/20260601-hpo-resume-test-inspect-cli-docs/) |
 
 ## Session Continuity
 
