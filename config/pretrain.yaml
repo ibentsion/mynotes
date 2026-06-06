@@ -6,10 +6,10 @@ hpo_storage: outputs/hpo_pretrain.db
 manifest: outputs/synthetic/manifest.csv
 
 hyperparams:
-  batch_size: 16
+  batch_size: 8
   blank_bias_init: -2.0
-  num_layers: 2
-  pretrain_epochs: 42
-  pretrain_lr: 1.38e-3
+  num_layers: 1
+  pretrain_epochs: 36
+  pretrain_lr: 0.000736011
   rnn_hidden: 256
   weight_decay: 0.0001
