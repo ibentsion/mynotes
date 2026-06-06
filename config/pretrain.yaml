@@ -7,7 +7,7 @@ manifest: outputs/synthetic/manifest.csv
 
 hyperparams:
   batch_size: 8
-  blank_bias_init: -2.0
+  blank_bias_init: -3.0
   num_layers: 1
   pretrain_epochs: 36
   pretrain_lr: 0.000736011
